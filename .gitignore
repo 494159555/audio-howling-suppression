@@ -61,3 +61,9 @@ runs/
 # OS
 .DS_Store
 Thumbs.db
+
+# 其他 markdown 文件（仅保留项目文档.md）
+AnnotationRules.md
+learningskill.md
+U-Net深度解析报告.md
+unet改进.md
