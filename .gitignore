@@ -62,11 +62,11 @@ runs/
 .DS_Store
 Thumbs.db
 
-# 忽略所有 markdown 文件
-*.md
+# # 忽略所有 markdown 文件
+# *.md
 
-# 但是保留项目文档.md
-!项目文档.md
+# # 但是保留项目文档.md
+# !项目文档.md
 
 # 忽略文档资料目录
 文档资料/
