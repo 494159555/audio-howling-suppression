@@ -1,0 +1,14 @@
+# U-Net V5 配置文件
+# 空洞卷积版本 U-Net
+
+# 模型配置
+model: unet_v5_dilated
+
+# 训练配置
+learning_rate: 1e-4
+batch_size: 8
+num_epochs: 50
+num_workers: 2
+
+# 实验配置
+experiment_name: dilated_unet

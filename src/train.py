@@ -1,64 +1,42 @@
 """
-Enhanced Training Module - Audio Howling Suppression Model Advanced Training Script
+增强训练模块 - 音频啸叫抑制模型高级训练脚本
 
-This module implements an enhanced training pipeline for AudioUNet5 model with
-comprehensive experiment management, monitoring, and visualization features including
-gradient monitoring, overfitting detection, and spectrogram visualization.
+本模块实现了U-Net模型的增强训练流水线，包含综合的实验管理、
+监控和可视化功能，包括梯度监控、过拟合检测和频谱图可视化。
 
-File Functions:
-- Implement enhanced training pipeline for AudioUNet5 model
-- Provide detailed experiment management, monitoring, and visualization features
-- Support gradient monitoring, overfitting detection, spectrogram visualization, etc.
+文件功能:
+- 实现U-Net模型的增强训练流水线
+- 提供详细的实验管理、监控和可视化功能
+- 支持梯度监控、过拟合检测、频谱图可视化等
 
-Main Components:
-- train function: Enhanced main training function
-- Experiment environment initialization: Complete experiment directory management and config backup
-- Data preparation: Training and validation dataset loading
-- Model and optimizer: Model construction, parameter statistics, optimizer configuration
-- Enhanced training loop: Includes detailed monitoring and visualization features
+新增功能:
+- 模型参数量统计和日志记录
+- 超参数和实验信息记录到TensorBoard
+- JSON格式的实验配置保存
+- 梯度范数监控（训练稳定性）
+- 过拟合比率计算（val_loss/train_loss比率）
+- 频谱图可视化（每5个epoch）
+- 完整的检查点保存（包含优化器状态）
+- 支持命令行参数和配置文件
 
-New Features:
-- Model parameter count statistics and logging
-- Hyperparameters and experiment info logging to TensorBoard
-- JSON format experiment configuration saving
-- Gradient norm monitoring (training stability)
-- Overfitting ratio calculation (val_loss/train_loss ratio)
-- Spectrogram visualization (every 5 epochs)
-- Complete checkpoint saving (includes optimizer state)
+使用方法:
+直接运行:
+    python src/train.py
 
-Important Parameters:
-Training Configuration:
-- NUM_EPOCHS: Number of training epochs (50)
-- BATCH_SIZE: Batch size (8)
-- LEARNING_RATE: Learning rate (1e-4)
-- NUM_WORKERS: Data loading threads (2)
+指定模型:
+    python src/train.py --model unet_v3_attention
 
-Monitoring Parameters:
-- Gradient norm monitoring: Detects gradient explosion/vanishing
-- Overfitting ratio: val_loss/train_loss, >1.0 indicates overfitting
-- Spectrogram visualization interval: Save every 5 epochs
+使用配置文件:
+    python src/train.py --config configs/unet_attention.yaml
 
-Output Files:
-- best_model.pth: Complete checkpoint (model + optimizer + scheduler state)
-- config.json: Experiment configuration JSON file
-- config_backup.py: Configuration file backup
-- TensorBoard logs: Contains training metrics, gradients, spectrograms, etc.
-
-Usage:
-Direct run:
-    python src/train_v2.py
-
-Code call:
-    from src.train_v2 import train
-    train()
-
-Author: Research Team
-Date: 2026-3-23
-Version: 2.0.0
+作者: 研究团队
+日期: 2026-3-23
+版本: 3.0.0
 """
 
 # Standard library imports
-import datetime
+import argparse
+from datetime import datetime
 import os
 import shutil
 import time
@@ -68,36 +46,188 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import yaml
 
 # Local imports
 from src.config import cfg
 from src.dataset import HowlingDataset
-from src.models import AudioUNet5
+from src.models import (
+    AudioUNet3,
+    AudioUNet5,
+    AudioUNet5Attention,
+    AudioUNet5Residual,
+    AudioUNet5Dilated,
+    AudioUNet5Optimized,
+)
+
+
+def parse_args():
+    """解析命令行参数。
+    
+    Returns:
+        argparse.Namespace: 解析后的参数对象
+    """
+    parser = argparse.ArgumentParser(
+        description='音频啸叫抑制模型训练脚本',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用示例:
+  # 使用默认模型训练
+  python src/train.py
+  
+  # 指定模型
+  python src/train.py --model unet_v3_attention
+  python src/train.py --model unet_v6_optimized
+  
+  # 使用配置文件
+  python src/train.py --config configs/unet_attention.yaml
+  
+  # 覆盖配置文件中的参数
+  python src/train.py --config configs/unet_attention.yaml --lr 2e-4 --epochs 100
+  
+  # 修改多个参数
+  python src/train.py --model unet_v6_optimized --lr 2e-4 --batch-size 4 --epochs 80
+        """
+    )
+    
+    # 模型选择
+    parser.add_argument(
+        '--model',
+        type=str,
+        default=cfg.DEFAULT_MODEL,
+        choices=list(cfg.AVAILABLE_MODELS.keys()),
+        help=f'选择模型 (默认: {cfg.DEFAULT_MODEL})'
+    )
+    
+    # 配置文件
+    parser.add_argument(
+        '--config',
+        type=str,
+        default=None,
+        help='配置文件路径 (YAML格式)'
+    )
+    
+    # 训练参数（可以覆盖config.py或配置文件中的值）
+    parser.add_argument(
+        '--lr',
+        '--learning-rate',
+        type=float,
+        default=None,
+        help='学习率 (覆盖配置文件)'
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=None,
+        help='批大小 (覆盖配置文件)'
+    )
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=None,
+        help='训练轮数 (覆盖配置文件)'
+    )
+    parser.add_argument(
+        '--num-workers',
+        type=int,
+        default=None,
+        help='数据加载线程数 (覆盖配置文件)'
+    )
+    
+    # 实验名称
+    parser.add_argument(
+        '--exp-name',
+        type=str,
+        default=None,
+        help='实验名称 (默认自动生成)'
+    )
+    
+    return parser.parse_args()
+
+
+def load_config_from_yaml(config_path: str) -> dict:
+    """从YAML文件加载配置。
+    
+    Args:
+        config_path: 配置文件路径
+        
+    Returns:
+        dict: 配置字典
+    """
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"配置文件不存在: {config_path}")
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    
+    return config
 
 
 def train() -> None:
-    """Execute enhanced training pipeline for AudioUNet5 model.
+    """执行模型的增强训练流水线。"""
+    # 解析命令行参数
+    args = parse_args()
     
-    This function implements a comprehensive training pipeline with experiment management,
-    monitoring, and visualization features. It handles experiment directory setup,
-    data loading, model initialization, training loop with monitoring,
-    and checkpoint saving.
+    # 确定使用的模型名称
+    model_name = args.model
     
-    The training includes:
-    - Experiment environment initialization with config backup
-    - Data preparation with train/validation splits
-    - Model and optimizer configuration
-    - Enhanced training loop with TensorBoard logging
-    - Gradient norm monitoring for training stability
-    - Overfitting ratio calculation
-    - Spectrogram visualization every 5 epochs
-    - Complete checkpoint saving (model + optimizer + scheduler state)
-    """
+    # 加载配置文件（如果指定）
+    config_override = {}
+    if args.config is not None:
+        file_config = load_config_from_yaml(args.config)
+        config_override.update(file_config)
+    
+    # 命令行参数覆盖配置
+    if args.lr is not None:
+        config_override['learning_rate'] = args.lr
+    if args.batch_size is not None:
+        config_override['batch_size'] = args.batch_size
+    if args.epochs is not None:
+        config_override['num_epochs'] = args.epochs
+    if args.num_workers is not None:
+        config_override['num_workers'] = args.num_workers
+    
+    # 应用配置覆盖
+    if config_override:
+        print("📝 使用自定义配置:")
+        for key, value in config_override.items():
+            print(f"  {key}: {value}")
+        print()
+    
+    # 获取模型类
+    model_class_name = cfg.AVAILABLE_MODELS[model_name]
+    
+    # 动态导入模型类
+    model_class = None
+    for cls in [AudioUNet3, AudioUNet5, AudioUNet5Attention, 
+                AudioUNet5Residual, AudioUNet5Dilated, AudioUNet5Optimized]:
+        if cls.__name__ == model_class_name:
+            model_class = cls
+            break
+    
+    if model_class is None:
+        raise ValueError(f"未找到模型类: {model_class_name}")
+    
+    # 应用配置覆盖到cfg
+    if 'learning_rate' in config_override:
+        cfg.LEARNING_RATE = config_override['learning_rate']
+    if 'batch_size' in config_override:
+        cfg.BATCH_SIZE = config_override['batch_size']
+    if 'num_epochs' in config_override:
+        cfg.NUM_EPOCHS = config_override['num_epochs']
+    if 'num_workers' in config_override:
+        cfg.NUM_WORKERS = config_override['num_workers']
+    
     # ==========================================
     # 1. 实验环境初始化 (Experiment Setup)
     # ==========================================
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"exp_{timestamp}_unet5"
+    
+    # 使用自定义实验名称或自动生成
+    if args.exp_name is not None:
+        experiment_name = f"exp_{timestamp}_{args.exp_name}"
+    else:
+        experiment_name = f"exp_{timestamp}_{model_name}"
 
     exp_dir = cfg.EXP_DIR / experiment_name
     checkpoint_dir = exp_dir / "checkpoints"
@@ -142,7 +272,8 @@ def train() -> None:
     )
 
     val_dataset = HowlingDataset(
-        clean_dir=cfg.VAL_CLEAN_DIR, howling_dir=cfg.VAL_NOISY_DIR
+        clean_dir=cfg.VAL_CLEAN_DIR, 
+        howling_dir=cfg.VAL_NOISY_DIR
     )
     val_loader = DataLoader(
         val_dataset,
@@ -159,9 +290,11 @@ def train() -> None:
     device = cfg.DEVICE
     print(f"💻 使用设备: {device}")
 
-    model = AudioUNet5().to(device)
+    # 使用动态选择的模型类
+    model = model_class().to(device)
+    print(f"🔧 使用模型: {model.__class__.__name__}")
 
-    # ⭐ 新增：统计模型参数量
+    # 统计模型参数量
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"📊 模型参数量: {total_params:,}\n")
 
@@ -175,7 +308,7 @@ def train() -> None:
         verbose=True,
     )
 
-    # ⭐ 新增：记录超参数和模型信息到 TensorBoard
+    # 记录超参数和模型信息到 TensorBoard
     writer.add_text("Experiment/Name", experiment_name, 0)
     writer.add_text(
         "Hyperparameters",
@@ -202,7 +335,7 @@ def train() -> None:
         0,
     )
 
-    # ⭐ 新增：保存实验配置为JSON（方便后续分析）
+    # 保存实验配置为JSON（方便后续分析）
     import json
 
     config_dict = {
@@ -227,7 +360,7 @@ def train() -> None:
     best_val_loss = float("inf")
     best_epoch = 0
 
-    # ⭐ 新增：用于记录每个epoch的指标
+    # 用于记录每个epoch的指标
     train_losses = []
     val_losses = []
     learning_rates = []
@@ -253,12 +386,13 @@ def train() -> None:
 
             # Log 域 Loss
             loss = criterion(
-                torch.log10(pred_mag + 1e-8), torch.log10(clean_mag + 1e-8)
+                torch.log10(pred_mag + 1e-8), 
+                torch.log10(clean_mag + 1e-8)
             )
 
             loss.backward()
 
-            # ⭐ 新增：记录梯度范数（监控训练稳定性）
+            # 记录梯度范数（监控训练稳定性）
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 model.parameters(), max_norm=float("inf")
             )
@@ -271,7 +405,7 @@ def train() -> None:
             global_step = epoch * len(train_loader) + batch_idx
             if batch_idx % 10 == 0:
                 writer.add_scalar("Loss/Train_Step", loss.item(), global_step)
-                writer.add_scalar("Gradients/Norm", grad_norm, global_step)  # ⭐ 新增
+                writer.add_scalar("Gradients/Norm", grad_norm, global_step)
 
         avg_train_loss = train_loss_accum / len(train_loader)
         train_losses.append(avg_train_loss)
@@ -288,7 +422,8 @@ def train() -> None:
                 pred_mag = model(noisy_mag)
 
                 val_loss = criterion(
-                    torch.log10(pred_mag + 1e-8), torch.log10(clean_mag + 1e-8)
+                    torch.log10(pred_mag + 1e-8), 
+                    torch.log10(clean_mag + 1e-8)
                 )
                 val_loss_accum += val_loss.item()
 
@@ -300,7 +435,7 @@ def train() -> None:
         current_lr = optimizer.param_groups[0]["lr"]
         learning_rates.append(current_lr)
 
-        # ⭐ 改进：更详细的打印信息
+        # 更详细的打印信息
         print(
             f"Epoch [{epoch+1:3d}/{cfg.NUM_EPOCHS}] | "
             f"Train Loss: {avg_train_loss:.4f} | "
@@ -315,11 +450,11 @@ def train() -> None:
         writer.add_scalar("Time/Epoch_Duration", duration, epoch)
         writer.add_scalar("Training/Learning_Rate", current_lr, epoch)
 
-        # ⭐ 新增：记录训练/验证loss的比值（监控过拟合）
+        # 记录训练/验证loss的比值（监控过拟合）
         overfitting_ratio = avg_val_loss / avg_train_loss if avg_train_loss > 0 else 1.0
         writer.add_scalar("Training/Overfitting_Ratio", overfitting_ratio, epoch)
 
-        # ⭐ 新增：可视化频谱图（每5个epoch保存一次）
+        # 可视化频谱图（每5个epoch保存一次）
         if epoch % 5 == 0:
             with torch.no_grad():
                 # 取验证集第一个batch的第一个样本
@@ -344,7 +479,7 @@ def train() -> None:
             best_val_loss = avg_val_loss
             best_epoch = epoch + 1
 
-            # ⭐ 改进：保存完整的checkpoint（包含优化器状态）
+            # 保存完整的checkpoint（包含优化器状态）
             checkpoint = {
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
@@ -370,5 +505,4 @@ if __name__ == "__main__":
         # 如果训练中途报错，打印错误信息
         print(f"训练发生错误: {e}")
         import traceback
-
         traceback.print_exc()

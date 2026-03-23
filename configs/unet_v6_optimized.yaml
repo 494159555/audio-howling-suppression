@@ -1,0 +1,14 @@
+# U-Net V6 配置文件
+# 综合改进版本 U-Net (注意力 + 残差 + 空洞卷积)
+
+# 模型配置
+model: unet_v6_optimized
+
+# 训练配置
+learning_rate: 1e-4
+batch_size: 8
+num_epochs: 50
+num_workers: 2
+
+# 实验配置
+experiment_name: optimized_unet

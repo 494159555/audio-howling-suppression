@@ -84,7 +84,34 @@ class Config:
     SCHEDULER_PATIENCE = 3   # 学习率衰减等待轮数：3轮无改善则衰减
     
     # ==========================
-    # 4. Device Configuration
+    # 4. Model Configuration
+    # ==========================
+    
+    # Available models and their class references
+    AVAILABLE_MODELS = {
+        'unet_v1': 'AudioUNet3',           # 3-layer baseline U-Net
+        'unet_v2': 'AudioUNet5',           # 5-layer baseline U-Net
+        'unet_v3_attention': 'AudioUNet5Attention',  # Attention mechanism
+        'unet_v4_residual': 'AudioUNet5Residual',    # Residual connections
+        'unet_v5_dilated': 'AudioUNet5Dilated',     # Atrous convolutions
+        'unet_v6_optimized': 'AudioUNet5Optimized',   # All improvements combined
+    }
+    
+    # Default model to use
+    DEFAULT_MODEL = 'unet_v2'
+    
+    # Model descriptions for reference
+    MODEL_DESCRIPTIONS = {
+        'unet_v1': '3-layer U-Net (baseline)',
+        'unet_v2': '5-layer U-Net (baseline)',
+        'unet_v3_attention': '5-layer U-Net with attention gates',
+        'unet_v4_residual': '5-layer U-Net with residual blocks',
+        'unet_v5_dilated': '5-layer U-Net with atrous convolutions',
+        'unet_v6_optimized': '5-layer U-Net with attention + residual + atrous',
+    }
+
+    # ==========================
+    # 5. Device Configuration
     # ==========================
     
     @property

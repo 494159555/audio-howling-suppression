@@ -22,6 +22,10 @@ traditional_method = FrequencyShiftMethod()
 
 from .unet_v1 import AudioUNet3
 from .unet_v2 import AudioUNet5
+from .unet_v3_attention import AudioUNet5Attention
+from .unet_v4_residual import AudioUNet5Residual
+from .unet_v5_dilated import AudioUNet5Dilated
+from .unet_v6_optimized import AudioUNet5Optimized
 from .CNN import AudioCNN
 from .RNN import AudioRNN
 
@@ -31,9 +35,17 @@ from ..traditional.gain_suppression import GainSuppressionMethod
 from ..traditional.adaptive_feedback import AdaptiveFeedbackMethod
 
 __all__ = [
-    # 深度学习模型
+    # 深度学习模型 - 基础版本
     'AudioUNet3',
     'AudioUNet5',
+    
+    # 深度学习模型 - 改进版本
+    'AudioUNet5Attention',      # 注意力机制
+    'AudioUNet5Residual',      # 残差连接
+    'AudioUNet5Dilated',       # 空洞卷积
+    'AudioUNet5Optimized',     # 综合改进
+    
+    # 其他深度学习模型
     'AudioCNN', 
     'AudioRNN',
     
