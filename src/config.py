@@ -6,7 +6,6 @@ project, including paths, audio processing parameters, training hyperparameters,
 and device settings.
 
 Author: Research Team
-Date: 2024-12-14
 Version: 2.0.0
 """
 

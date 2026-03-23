@@ -27,7 +27,7 @@
 
 使用方法：
 命令行使用：
-python src/evaluate.py --checkpoint experiments/exp_xxx/checkpoints/best_model.pth
+python -m src.evaluate --checkpoint experiments\exp_20251212_032136_unet5\checkpoints\best_model.pth
 
 代码调用：
 from src.evaluate import evaluate_model
