@@ -1,28 +1,51 @@
-'''
-可视化工具模块
+"""
+Audio Visualization Module
 
-提供音频评估结果的可视化功能，包括：
-- 频谱图对比
-- 波形图对比
-- 指标对比图表
-- 雷达图、柱状图等
-'''
+This module provides comprehensive visualization tools for audio evaluation results,
+including spectrogram comparisons, waveform comparisons, metric comparison charts,
+radar charts, and comprehensive evaluation reports.
 
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.gridspec import GridSpec
-import seaborn as sns
-from typing import Dict, List, Tuple, Optional
+Author: Research Team
+Date: 2026-3-23
+Version: 2.0.0
+"""
+
+# Standard library imports
 import os
 from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+
+# Third-party imports
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import numpy as np
+import seaborn as sns
+import torch
+from matplotlib.gridspec import GridSpec
+
+# Local imports
+# None
 
 
 class AudioVisualizer:
-    """音频评估结果可视化类"""
+    """Audio evaluation result visualization class.
+    
+    This class provides comprehensive visualization tools for audio evaluation
+    results including spectrograms, waveforms, metric comparisons, radar charts,
+    and comprehensive reports.
+    
+    Attributes:
+        save_dir (Path): Directory for saving visualization outputs
+        colors (List[str]): Color palette for visualizations
+    """
     
     def __init__(self, save_dir: str = "evaluation_results"):
+        """Initialize AudioVisualizer.
+        
+        Args:
+            save_dir (str, optional): Directory path for saving visualizations. 
+                                    Defaults to "evaluation_results".
+        """
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(exist_ok=True)
         

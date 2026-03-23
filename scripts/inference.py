@@ -7,7 +7,7 @@ It supports both Griffin-Lim and ISTFT phase reconstruction methods with
 comprehensive audio preprocessing and postprocessing.
 
 Author: Research Team
-Date: 2024-12-14
+Date: 2026-3-23
 Version: 2.0.0
 """
 
@@ -220,12 +220,12 @@ def inference(model_path: str, input_wav: str, output_wav: str,
         print(f"❌ Save failed: {e}")
         return False
 
-
 def main() -> None:
     """Main function for command-line interface.
     
     Parses command-line arguments and performs audio howling suppression inference.
-    Supports automatic device detection and various processing options.
+    Supports automatic device detection and various processing options including
+    Griffin-Lim phase reconstruction for enhanced audio quality.
     """
     parser = argparse.ArgumentParser(description="Audio Howling Suppression Inference Script")
     parser.add_argument("--model", type=str, required=True, 

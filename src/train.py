@@ -1,68 +1,98 @@
-'''
-增强训练模块 - 音频啸叫抑制模型高级训练脚本
+"""
+Enhanced Training Module - Audio Howling Suppression Model Advanced Training Script
 
-文件功能：
-- 实现AudioUNet5模型的增强版训练流程
-- 提供更详细的实验管理、监控和可视化功能
-- 支持梯度监控、过拟合检测、频谱可视化等高级特性
+This module implements an enhanced training pipeline for AudioUNet5 model with
+comprehensive experiment management, monitoring, and visualization features including
+gradient monitoring, overfitting detection, and spectrogram visualization.
 
-主要组件：
-- train函数：增强版主训练函数
-- 实验环境初始化：完整的实验目录管理和配置备份
-- 数据准备：训练和验证数据集加载
-- 模型与优化器：模型构建、参数统计、优化器配置
-- 增强训练循环：包含详细监控和可视化功能
+File Functions:
+- Implement enhanced training pipeline for AudioUNet5 model
+- Provide detailed experiment management, monitoring, and visualization features
+- Support gradient monitoring, overfitting detection, spectrogram visualization, etc.
 
-新增特性：
-- 模型参数量统计和记录
-- 超参数和实验信息记录到TensorBoard
-- JSON格式实验配置保存
-- 梯度范数监控(训练稳定性)
-- 过拟合比率计算(验证集/训练集loss比值)
-- 频谱图可视化(每5个epoch)
-- 完整checkpoint保存(包含优化器状态)
+Main Components:
+- train function: Enhanced main training function
+- Experiment environment initialization: Complete experiment directory management and config backup
+- Data preparation: Training and validation dataset loading
+- Model and optimizer: Model construction, parameter statistics, optimizer configuration
+- Enhanced training loop: Includes detailed monitoring and visualization features
 
-重要参数：
-训练配置：
-- NUM_EPOCHS: 训练轮数(50)
-- BATCH_SIZE: 批大小(8)
-- LEARNING_RATE: 学习率(1e-4)
-- NUM_WORKERS: 数据加载线程数(2)
+New Features:
+- Model parameter count statistics and logging
+- Hyperparameters and experiment info logging to TensorBoard
+- JSON format experiment configuration saving
+- Gradient norm monitoring (training stability)
+- Overfitting ratio calculation (val_loss/train_loss ratio)
+- Spectrogram visualization (every 5 epochs)
+- Complete checkpoint saving (includes optimizer state)
 
-监控参数：
-- 梯度范数监控：检测梯度爆炸/消失
-- 过拟合比率：val_loss/train_loss，>1.0表示过拟合
-- 频谱可视化间隔：每5个epoch保存一次
+Important Parameters:
+Training Configuration:
+- NUM_EPOCHS: Number of training epochs (50)
+- BATCH_SIZE: Batch size (8)
+- LEARNING_RATE: Learning rate (1e-4)
+- NUM_WORKERS: Data loading threads (2)
 
-输出文件：
-- best_model.pth: 完整checkpoint(模型+优化器+调度器状态)
-- config.json: 实验配置JSON文件
-- config_backup.py: 配置文件备份
-- TensorBoard日志：包含训练指标、梯度、频谱图等
+Monitoring Parameters:
+- Gradient norm monitoring: Detects gradient explosion/vanishing
+- Overfitting ratio: val_loss/train_loss, >1.0 indicates overfitting
+- Spectrogram visualization interval: Save every 5 epochs
 
-使用方法：
-直接运行：
-python src/train_v2.py
+Output Files:
+- best_model.pth: Complete checkpoint (model + optimizer + scheduler state)
+- config.json: Experiment configuration JSON file
+- config_backup.py: Configuration file backup
+- TensorBoard logs: Contains training metrics, gradients, spectrograms, etc.
 
-代码调用：
-from src.train_v2 import train
-train()
-'''
+Usage:
+Direct run:
+    python src/train_v2.py
 
+Code call:
+    from src.train_v2 import train
+    train()
+
+Author: Research Team
+Date: 2026-3-23
+Version: 2.0.0
+"""
+
+# Standard library imports
+import datetime
 import os
-import time
 import shutil
+import time
+
+# Third-party imports
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from datetime import datetime
+
+# Local imports
 from src.config import cfg
 from src.dataset import HowlingDataset
 from src.models import AudioUNet5
 
 
-def train():
+def train() -> None:
+    """Execute enhanced training pipeline for AudioUNet5 model.
+    
+    This function implements a comprehensive training pipeline with experiment management,
+    monitoring, and visualization features. It handles experiment directory setup,
+    data loading, model initialization, training loop with monitoring,
+    and checkpoint saving.
+    
+    The training includes:
+    - Experiment environment initialization with config backup
+    - Data preparation with train/validation splits
+    - Model and optimizer configuration
+    - Enhanced training loop with TensorBoard logging
+    - Gradient norm monitoring for training stability
+    - Overfitting ratio calculation
+    - Spectrogram visualization every 5 epochs
+    - Complete checkpoint saving (model + optimizer + scheduler state)
+    """
     # ==========================================
     # 1. 实验环境初始化 (Experiment Setup)
     # ==========================================

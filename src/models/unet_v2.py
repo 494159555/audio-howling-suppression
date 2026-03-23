@@ -7,7 +7,7 @@ skip connections provides powerful feature extraction and reconstruction
 capabilities for complex spectrogram restoration.
 
 Author: Research Team
-Date: 2024-12-14
+Date: 2026-3-23
 Version: 2.0.0
 """
 

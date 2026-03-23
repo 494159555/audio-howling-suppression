@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-音频啸叫抑制方法对比实验脚本
+Audio Howling Suppression Method Comparison Experiment Script
 
-使用方法：
-1. 快速评估：python run_experiment.py --mode quick
-2. 全面评估：python run_experiment.py --mode comprehensive
-3. 仅传统方法：python run_experiment.py --mode traditional
-4. 自定义方法：python run_experiment.py --mode custom --methods unet frequency_shift
+This script provides experiment capabilities for comparing different audio howling
+suppression methods with various evaluation modes.
+
+Usage:
+1. Quick evaluation: python run_experiment.py --mode quick
+2. Comprehensive evaluation: python run_experiment.py --mode comprehensive
+3. Traditional methods only: python run_experiment.py --mode traditional
+4. Custom methods: python run_experiment.py --mode custom --methods unet frequency_shift
+
+Author: Research Team
+Date: 2026-3-23
+Version: 2.0.0
 """
 
 import argparse
@@ -24,7 +31,12 @@ from src.evaluation.test_runner import (
 )
 
 
-def main():
+def main() -> None:
+    """Main function for running audio howling suppression comparison experiments.
+    
+    Parses command-line arguments and executes the appropriate evaluation mode
+    (quick, comprehensive, traditional, or custom methods).
+    """
     parser = argparse.ArgumentParser(description="音频啸叫抑制方法对比实验")
     parser.add_argument("--mode", type=str, default="quick", 
                        choices=["quick", "comprehensive", "traditional", "custom"],

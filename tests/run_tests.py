@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 """
-统一测试脚本 - 音频啸叫抑制项目测试套件
+Unified Test Script - Audio Howling Suppression Project Test Suite
 
-支持多种测试模式：
-- quick: 快速环境检查（导入、数据可用性）
-- evaluation: 传统方法性能评估
-- full: 全面测试（包括深度学习模型）
+This script provides comprehensive testing capabilities for the audio howling
+suppression project with multiple test modes.
 
-使用方法:
+Supported Test Modes:
+- quick: Quick environment check (imports, data availability)
+- evaluation: Traditional method performance evaluation
+- full: Comprehensive testing (including deep learning models)
+
+Usage:
     python tests/run_tests.py --mode quick
     python tests/run_tests.py --mode evaluation
     python tests/run_tests.py --mode full
     python tests/run_tests.py --modules traditional,evaluation
+
+Author: Research Team
+Date: 2026-3-23
+Version: 2.0.0
 """
 
 import sys

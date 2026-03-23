@@ -7,7 +7,7 @@ preprocessing capabilities including spectral transformation, log scaling,
 and normalization.
 
 Author: Research Team
-Date: 2024-12-14
+Date: 2026-3-23
 Version: 2.0.0
 """
 

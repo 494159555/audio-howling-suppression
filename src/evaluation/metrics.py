@@ -1,40 +1,65 @@
-'''
-音频评估指标模块
+"""
+Audio Quality Metrics Module
 
-实现各种音频质量评估指标，包括：
-- 客观指标：SNR、PSNR、STOI、PESQ等
-- 啸叫抑制专用指标
-- 计算效率指标
-'''
+This module implements various audio quality evaluation metrics including
+objective metrics (SNR, PSNR, STOI, PESQ), howling suppression specific metrics,
+and computational efficiency metrics.
 
-import torch
-import numpy as np
-import torchaudio
-from typing import Dict, List, Tuple, Optional
-import time
-import psutil
+Author: Research Team
+Date: 2026-3-23
+Version: 2.0.0
+"""
+
+# Standard library imports
 import os
+import time
+from typing import Dict, List, Tuple, Optional
+
+# Third-party imports
+import numpy as np
+import psutil
+import torch
+import torchaudio
+
+# Local imports
+# None
 
 
 class AudioMetrics:
-    """音频质量评估指标计算类"""
+    """Audio quality metrics calculator.
+    
+    This class provides comprehensive audio quality evaluation metrics including
+    objective metrics (SNR, PSNR, STOI), howling suppression specific metrics,
+    and computational efficiency metrics.
+    
+    Attributes:
+        sample_rate (int): Audio sample rate in Hz
+        eps (float): Small value for numerical stability
+    """
     
     def __init__(self, sample_rate: int = 16000):
+        """Initialize AudioMetrics calculator.
+        
+        Args:
+            sample_rate (int, optional): Audio sample rate in Hz. Defaults to 16000.
+        """
         self.sample_rate = sample_rate
         self.eps = 1e-8
         
     def calculate_snr(self, clean: torch.Tensor, enhanced: torch.Tensor, 
                      noisy: torch.Tensor) -> float:
-        """
-        计算信噪比改善 (SNR Improvement)
+        """Calculate signal-to-noise ratio (SNR) improvement.
+        
+        Computes the SNR improvement between input noisy audio and processed enhanced
+        audio relative to the clean reference.
         
         Args:
-            clean: 纯净音频 [B, 1, T]
-            enhanced: 处理后音频 [B, 1, T] 
-            noisy: 带噪音频 [B, 1, T]
+            clean (torch.Tensor): Clean audio reference [B, 1, T]
+            enhanced (torch.Tensor): Enhanced/processed audio [B, 1, T]
+            noisy (torch.Tensor): Noisy input audio [B, 1, T]
             
         Returns:
-            SNR改善值 (dB)
+            float: SNR improvement in decibels (dB)
         """
         # 计算原始SNR
         snr_input = 10 * torch.log10(
@@ -57,15 +82,16 @@ class AudioMetrics:
             return float(result)
     
     def calculate_psnr(self, clean: torch.Tensor, enhanced: torch.Tensor) -> float:
-        """
-        计算峰值信噪比 (PSNR)
+        """Calculate peak signal-to-noise ratio (PSNR).
+        
+        Computes PSNR between clean reference and enhanced audio.
         
         Args:
-            clean: 纯净音频
-            enhanced: 处理后音频
+            clean (torch.Tensor): Clean audio reference
+            enhanced (torch.Tensor): Enhanced/processed audio
             
         Returns:
-            PSNR值 (dB)
+            float: PSNR value in decibels (dB)
         """
         mse = torch.mean((clean - enhanced) ** 2)
         if mse == 0:
@@ -81,16 +107,17 @@ class AudioMetrics:
             return float(psnr)
     
     def calculate_stoi(self, clean: torch.Tensor, enhanced: torch.Tensor) -> float:
-        """
-        计算短时客观可懂度 (STOI)
-        简化版本，实际应用中建议使用pystoi库
+        """Calculate short-time objective intelligibility (STOI).
+        
+        Simplified STOI calculation using correlation. For production use,
+        consider using the pystoi library for more accurate results.
         
         Args:
-            clean: 纯净音频
-            enhanced: 处理后音频
+            clean (torch.Tensor): Clean audio reference
+            enhanced (torch.Tensor): Enhanced/processed audio
             
         Returns:
-            STOI值 (0-1)
+            float: STOI score between 0 and 1
         """
         # 简化的STOI计算
         # 实际建议使用: from pystoi import stoi
@@ -112,16 +139,23 @@ class AudioMetrics:
     
     def calculate_howling_reduction(self, noisy: torch.Tensor, enhanced: torch.Tensor,
                                   freq_bins: List[int] = None) -> Dict[str, float]:
-        """
-        计算啸叫抑制效果
+        """Calculate howling suppression effectiveness metrics.
+        
+        Computes metrics related to howling reduction including reduction in decibels,
+        spectral smoothness improvement, and high frequency energy reduction.
         
         Args:
-            noisy: 带噪音频频谱
-            enhanced: 处理后音频频谱
-            freq_bins: 啸叫频段列表
+            noisy (torch.Tensor): Noisy audio spectrogram with howling
+            enhanced (torch.Tensor): Enhanced/processed audio spectrogram
+            freq_bins (List[int], optional): List of frequency bins corresponding to
+                                           howling frequency range. Defaults to None
+                                           (uses high frequency bins 200-255).
             
         Returns:
-            啸叫抑制指标字典
+            Dict[str, float]: Dictionary containing howling suppression metrics:
+                - howling_reduction_db: Reduction in decibels
+                - spectral_smoothness_improvement: Improvement in spectral smoothness
+                - high_frequency_reduction: High frequency energy reduction ratio
         """
         if freq_bins is None:
             # 默认高频段作为啸叫频段
@@ -153,7 +187,17 @@ class AudioMetrics:
         }
     
     def _calculate_spectral_smoothness(self, spectrum: torch.Tensor) -> float:
-        """计算频谱平滑度"""
+        """Calculate spectral smoothness metric.
+        
+        Computes spectral smoothness based on the variance of adjacent frequency bins.
+        Higher values indicate smoother spectra (less peakiness).
+        
+        Args:
+            spectrum (torch.Tensor): Input spectrogram
+            
+        Returns:
+            float: Spectral smoothness value (higher is smoother)
+        """
         # 计算相邻频bin的差异
         diff = torch.diff(spectrum, dim=-2)
         smoothness = 1 / (torch.mean(diff ** 2) + self.eps)
@@ -165,17 +209,23 @@ class AudioMetrics:
     
     def calculate_computational_metrics(self, method_name: str, input_data: torch.Tensor,
                                       processing_func, **kwargs) -> Dict[str, float]:
-        """
-        计算计算效率指标
+        """Calculate computational efficiency metrics.
+        
+        Measures processing time, memory usage, parameter count, and throughput
+        for a given processing method.
         
         Args:
-            method_name: 方法名称
-            input_data: 输入数据
-            processing_func: 处理函数
-            **kwargs: 处理函数参数
+            method_name (str): Name of the processing method
+            input_data (torch.Tensor): Input data for processing
+            processing_func: Processing function or callable
+            **kwargs: Additional arguments for the processing function
             
         Returns:
-            计算效率指标字典
+            Dict[str, float]: Dictionary containing computational metrics:
+                - processing_time_ms: Processing time in milliseconds
+                - memory_usage_mb: Memory usage in megabytes
+                - parameter_count: Number of parameters (if applicable)
+                - throughput_samples_per_sec: Samples processed per second
         """
         # 内存使用
         process = psutil.Process(os.getpid())
@@ -208,19 +258,22 @@ class AudioMetrics:
     def calculate_all_metrics(self, clean: torch.Tensor, noisy: torch.Tensor, 
                             enhanced: torch.Tensor, method_name: str = "unknown",
                             processing_func=None, **kwargs) -> Dict[str, float]:
-        """
-        计算所有评估指标
+        """Calculate all evaluation metrics comprehensively.
+        
+        Computes audio quality metrics, howling suppression metrics, and
+        computational efficiency metrics in one call.
         
         Args:
-            clean: 纯净音频
-            noisy: 带噪音频  
-            enhanced: 处理后音频
-            method_name: 方法名称
-            processing_func: 处理函数(用于计算效率指标)
-            **kwargs: 处理函数参数
+            clean (torch.Tensor): Clean audio reference
+            noisy (torch.Tensor): Noisy input audio with howling
+            enhanced (torch.Tensor): Enhanced/processed audio
+            method_name (str, optional): Name of the processing method. Defaults to "unknown".
+            processing_func (optional): Processing function for computational metrics. Defaults to None.
+            **kwargs: Additional arguments for processing function
             
         Returns:
-            所有指标的字典
+            Dict[str, float]: Dictionary containing all calculated metrics including
+                             audio quality, howling suppression, and computational metrics
         """
         metrics = {}
         
@@ -244,14 +297,19 @@ class AudioMetrics:
 
 
 def calculate_mos_score(metrics: Dict[str, float]) -> float:
-    """
-    基于客观指标估算MOS分数
+    """Estimate Mean Opinion Score (MOS) from objective metrics.
+    
+    Uses a simplified weighted formula to estimate MOS (1-5 scale) from
+    objective metrics. For production use, consider training a regression
+    model with subjective evaluation data.
     
     Args:
-        metrics: 客观指标字典
-        
+        metrics (Dict[str, float]): Dictionary of objective metrics including
+                                   snr_improvement_db, stoi_score, psnr_db,
+                                   and howling_reduction_db
+                                   
     Returns:
-        估算的MOS分数 (1-5)
+        float: Estimated MOS score on a scale of 1 to 5
     """
     # 简化的MOS估算公式
     # 实际应用中建议使用主观评估数据训练回归模型
