@@ -58,6 +58,10 @@ from src.models import (
     AudioUNet5Residual,
     AudioUNet5Dilated,
     AudioUNet5Optimized,
+    AudioUNet5LSTM,
+    AudioUNet5TemporalAttention,
+    AudioUNet5ConvLSTM,
+    AudioUNet5GAN,
 )
 
 
@@ -200,7 +204,9 @@ def train() -> None:
     # 动态导入模型类
     model_class = None
     for cls in [AudioUNet3, AudioUNet5, AudioUNet5Attention, 
-                AudioUNet5Residual, AudioUNet5Dilated, AudioUNet5Optimized]:
+                AudioUNet5Residual, AudioUNet5Dilated, AudioUNet5Optimized,
+                AudioUNet5LSTM, AudioUNet5TemporalAttention, 
+                AudioUNet5ConvLSTM, AudioUNet5GAN]:
         if cls.__name__ == model_class_name:
             model_class = cls
             break

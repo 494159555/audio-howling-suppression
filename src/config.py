@@ -1,12 +1,12 @@
 """
 Configuration Module
 
-This module defines global configuration parameters for the audio howling suppression
+This module defines global configuration parameters for audio howling suppression
 project, including paths, audio processing parameters, training hyperparameters,
 and device settings.
 
 Author: Research Team
-Version: 2.0.0
+Version: 3.0.0
 """
 
 # Standard library imports
@@ -26,7 +26,7 @@ class Config:
     audio processing settings, training hyperparameters, and device configuration.
     
     Attributes:
-        PROJECT_ROOT (Path): Root directory of the project
+        PROJECT_ROOT (Path): Root directory of project
         DATA_ROOT (Path): Root directory for data files
         TRAIN_CLEAN_DIR (Path): Directory for training clean audio files
         TRAIN_NOISY_DIR (Path): Directory for training howling audio files
@@ -89,12 +89,23 @@ class Config:
     
     # Available models and their class references
     AVAILABLE_MODELS = {
+        # Baseline models
         'unet_v1': 'AudioUNet3',           # 3-layer baseline U-Net
         'unet_v2': 'AudioUNet5',           # 5-layer baseline U-Net
+        
+        # Direction 1: Network architecture optimization
         'unet_v3_attention': 'AudioUNet5Attention',  # Attention mechanism
         'unet_v4_residual': 'AudioUNet5Residual',    # Residual connections
         'unet_v5_dilated': 'AudioUNet5Dilated',     # Atrous convolutions
         'unet_v6_optimized': 'AudioUNet5Optimized',   # All improvements combined
+        
+        # Direction 3: Temporal modeling enhancement
+        'unet_v7_lstm': 'AudioUNet5LSTM',         # LSTM integration
+        'unet_v8_temporal_attention': 'AudioUNet5TemporalAttention',  # Temporal attention
+        'unet_v9_convlstm': 'AudioUNet5ConvLSTM',     # ConvLSTM
+        
+        # Direction 2 & 3: GAN framework
+        'unet_v10_gan': 'AudioUNet5GAN',          # GAN framework
     }
     
     # Default model to use
@@ -102,13 +113,37 @@ class Config:
     
     # Model descriptions for reference
     MODEL_DESCRIPTIONS = {
+        # Baseline models
         'unet_v1': '3-layer U-Net (baseline)',
         'unet_v2': '5-layer U-Net (baseline)',
+        
+        # Direction 1: Network architecture optimization
         'unet_v3_attention': '5-layer U-Net with attention gates',
         'unet_v4_residual': '5-layer U-Net with residual blocks',
         'unet_v5_dilated': '5-layer U-Net with atrous convolutions',
         'unet_v6_optimized': '5-layer U-Net with attention + residual + atrous',
+        
+        # Direction 3: Temporal modeling enhancement
+        'unet_v7_lstm': '5-layer U-Net with bidirectional LSTM (temporal modeling)',
+        'unet_v8_temporal_attention': '5-layer U-Net with temporal attention mechanism',
+        'unet_v9_convlstm': '5-layer U-Net with ConvLSTM (spatio-temporal)',
+        
+        # Direction 2 & 3: GAN framework
+        'unet_v10_gan': '5-layer U-Net with GAN framework (generator + discriminator)',
     }
+    
+    # Loss function configurations
+    LOSS_FUNCTIONS = {
+        'l1': 'L1 Loss',
+        'mse': 'MSE Loss',
+        'spectral': 'Spectral Loss',
+        'multitask': 'Multi-Task Loss (spectral + l1 + mse)',
+        'multitask_consistency': 'Multi-Task Loss with Consistency',
+        'adversarial': 'Adversarial Loss (GAN)',
+    }
+    
+    # Default loss function
+    DEFAULT_LOSS = 'multitask'
 
     # ==========================
     # 5. Device Configuration
