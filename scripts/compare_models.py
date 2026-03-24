@@ -1,33 +1,18 @@
-"""
-Model Comparison Script
+"""U-Net模型对比脚本
 
-This script compares all U-Net models (baseline and improved versions) by:
-1. Initializing each model
-2. Testing forward pass with sample input
-3. Counting parameters
-4. Displaying comparison results
-
-Usage:
-    python scripts/compare_models.py
-
-Author: Research Team
-Date: 2026-3-23
-Version: 1.0.0
+初始化并对比测试所有U-Net模型，统计参数量并输出对比结果
 """
 
-# Standard library imports
 import sys
 from pathlib import Path
 
-# Add project root to path
+# 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Third-party imports
 import torch
 import torch.nn as nn
 
-# Local imports
 from src.models import (
     AudioUNet3,
     AudioUNet5,
@@ -40,14 +25,7 @@ from src.config import Config, cfg
 
 
 def count_parameters(model: nn.Module) -> dict:
-    """Count total and trainable parameters in a model.
-    
-    Args:
-        model: PyTorch model
-        
-    Returns:
-        dict: Dictionary containing parameter counts
-    """
+    """统计模型参数数量"""
     total = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     non_trainable = total - trainable
@@ -60,14 +38,7 @@ def count_parameters(model: nn.Module) -> dict:
 
 
 def format_number(num: int) -> str:
-    """Format large numbers with comma separators.
-    
-    Args:
-        num: Number to format
-        
-    Returns:
-        str: Formatted number string
-    """
+    """格式化大数字"""
     if num >= 1_000_000:
         return f"{num / 1_000_000:.2f}M"
     elif num >= 1_000:
@@ -77,37 +48,28 @@ def format_number(num: int) -> str:
 
 
 def test_model(model_class, model_name: str, input_tensor: torch.Tensor) -> dict:
-    """Test a model with sample input.
-    
-    Args:
-        model_class: Model class to test
-        model_name: Name of the model
-        input_tensor: Input tensor for testing
-        
-    Returns:
-        dict: Test results including shapes and parameter counts
-    """
+    """测试模型"""
     print(f"\n{'='*60}")
     print(f"Testing: {model_name}")
     print(f"{'='*60}")
     
     try:
-        # Initialize model
+        # 初始化模型
         model = model_class()
         
-        # Move to device
+        # 移动到设备
         model = model.to(cfg.DEVICE)
         input_tensor = input_tensor.to(cfg.DEVICE)
         
-        # Count parameters
+        # 统计参数
         params = count_parameters(model)
         
-        # Test forward pass
+        # 测试前向传播
         model.eval()
         with torch.no_grad():
             output = model(input_tensor)
         
-        # Collect results
+        # 收集结果
         results = {
             'name': model_name,
             'input_shape': tuple(input_tensor.shape),
@@ -117,14 +79,14 @@ def test_model(model_class, model_name: str, input_tensor: torch.Tensor) -> dict
             'error': None,
         }
         
-        # Print results
-        print(f"✓ Model initialized successfully")
-        print(f"  Input shape:  {results['input_shape']}")
-        print(f"  Output shape: {results['output_shape']}")
-        print(f"  Total parameters:       {format_number(params['total']):>10} ({params['total']:,})")
-        print(f"  Trainable parameters:    {format_number(params['trainable']):>10} ({params['trainable']:,})")
-        print(f"  Non-trainable params:   {format_number(params['non_trainable']):>10} ({params['non_trainable']:,})")
-        print(f"✓ Forward pass successful")
+        # 打印结果
+        print(f"✓ 模型初始化成功")
+        print(f"  输入形状:  {results['input_shape']}")
+        print(f"  输出形状: {results['output_shape']}")
+        print(f"  总参数量:       {format_number(params['total']):>10} ({params['total']:,})")
+        print(f"  可训练参数:    {format_number(params['trainable']):>10} ({params['trainable']:,})")
+        print(f"  不可训练参数:   {format_number(params['non_trainable']):>10} ({params['non_trainable']:,})")
+        print(f"✓ 前向传播成功")
         
     except Exception as e:
         results = {
@@ -135,46 +97,41 @@ def test_model(model_class, model_name: str, input_tensor: torch.Tensor) -> dict
             'success': False,
             'error': str(e),
         }
-        print(f"✗ Model failed with error:")
+        print(f"✗ 模型测试失败:")
         print(f"  {e}")
     
     return results
 
 
 def print_summary_table(results: list, config: Config):
-    """Print a summary comparison table of all models.
-    
-    Args:
-        results: List of test results for each model
-        config: Configuration object
-    """
+    """打印模型对比汇总表"""
     print(f"\n\n{'='*80}")
-    print("SUMMARY TABLE - Model Comparison")
+    print("模型对比汇总表")
     print(f"{'='*80}\n")
     
-    # Print header
-    header = f"{'Model':<25} {'Total Params':>15} {'Trainable':>15} {'Status':>15}"
+    # 打印表头
+    header = f"{'模型':<25} {'总参数':>15} {'可训练':>15} {'状态':>15}"
     print(header)
     print("-" * 80)
     
-    # Print each model
+    # 打印每个模型
     for result in results:
         if result['success']:
             params_str = format_number(result['params']['total'])
             trainable_str = format_number(result['params']['trainable'])
-            status = "✓ PASS"
+            status = "✓ 通过"
         else:
             params_str = "N/A"
             trainable_str = "N/A"
-            status = "✗ FAIL"
+            status = "✗ 失败"
         
         row = f"{result['name']:<25} {params_str:>15} {trainable_str:>15} {status:>15}"
         print(row)
     
-    # Print footer
+    # 打印分割线
     print("-" * 80)
     
-    # Calculate statistics
+    # 计算统计信息
     successful = sum(1 for r in results if r['success'])
     total = len(results)
     
@@ -184,15 +141,15 @@ def print_summary_table(results: list, config: Config):
         max_params = max(total_params)
         avg_params = sum(total_params) / len(total_params)
         
-        print(f"\nStatistics:")
-        print(f"  Successful models: {successful}/{total}")
-        print(f"  Min parameters:  {format_number(min_params):>10} ({min_params:,})")
-        print(f"  Max parameters:  {format_number(max_params):>10} ({max_params:,})")
-        print(f"  Avg parameters:  {format_number(int(avg_params)):>10} ({int(avg_params):,})")
+        print(f"\n统计信息:")
+        print(f"  成功模型数: {successful}/{total}")
+        print(f"  最少参数:  {format_number(min_params):>10} ({min_params:,})")
+        print(f"  最多参数:  {format_number(max_params):>10} ({max_params:,})")
+        print(f"  平均参数:  {format_number(int(avg_params)):>10} ({int(avg_params):,})")
     
-    # Print model descriptions
+    # 打印模型描述
     print(f"\n\n{'='*80}")
-    print("MODEL DESCRIPTIONS")
+    print("模型描述")
     print(f"{'='*80}\n")
     
     for model_key, description in config.MODEL_DESCRIPTIONS.items():
@@ -200,51 +157,51 @@ def print_summary_table(results: list, config: Config):
 
 
 def main():
-    """Main function to run model comparison."""
+    """主函数"""
     print("\n" + "="*80)
-    print("U-Net Model Comparison Script")
+    print("U-Net模型对比脚本")
     print("="*80)
-    print(f"\nDevice: {cfg.DEVICE}")
-    print(f"PyTorch version: {torch.__version__}")
+    print(f"\n设备: {cfg.DEVICE}")
+    print(f"PyTorch版本: {torch.__version__}")
     
-    # Define models to test
+    # 定义待测试模型
     models_to_test = [
-        (AudioUNet3, 'AudioUNet3 (3-layer baseline)'),
-        (AudioUNet5, 'AudioUNet5 (5-layer baseline)'),
-        (AudioUNet5Attention, 'AudioUNet5Attention (Attention mechanism)'),
-        (AudioUNet5Residual, 'AudioUNet5Residual (Residual connections)'),
-        (AudioUNet5Dilated, 'AudioUNet5Dilated (Atrous convolutions)'),
-        (AudioUNet5Optimized, 'AudioUNet5Optimized (All improvements)'),
+        (AudioUNet3, 'AudioUNet3 (3层基线)'),
+        (AudioUNet5, 'AudioUNet5 (5层基线)'),
+        (AudioUNet5Attention, 'AudioUNet5Attention (注意力机制)'),
+        (AudioUNet5Residual, 'AudioUNet5Residual (残差连接)'),
+        (AudioUNet5Dilated, 'AudioUNet5Dilated (空洞卷积)'),
+        (AudioUNet5Optimized, 'AudioUNet5Optimized (综合改进)'),
     ]
     
-    # Create sample input
-    # Shape: [Batch=2, Channels=1, Freq=256, Time=100]
+    # 创建样本输入
+    # 形状: [Batch=2, Channels=1, Freq=256, Time=100]
     sample_input = torch.randn(2, 1, 256, 100)
-    print(f"\nSample input shape: {tuple(sample_input.shape)}")
+    print(f"\n样本输入形状: {tuple(sample_input.shape)}")
     
-    # Test all models
+    # 测试所有模型
     results = []
     for model_class, model_name in models_to_test:
         result = test_model(model_class, model_name, sample_input)
         results.append(result)
     
-    # Print summary table
+    # 打印汇总表
     print_summary_table(results, cfg)
     
-    # Print conclusion
+    # 打印结论
     print(f"\n\n{'='*80}")
-    print("CONCLUSION")
+    print("结论")
     print(f"{'='*80}\n")
     
     successful = sum(1 for r in results if r['success'])
     if successful == len(results):
-        print("✓ All models initialized and tested successfully!")
-        print("\nYou can now use any of these models for training:")
+        print("✓ 所有模型初始化和测试成功!")
+        print("\n可以使用以下任意模型进行训练:")
         for model_key, description in cfg.AVAILABLE_MODELS.items():
             print(f"  - {model_key}: {description}")
     else:
-        print(f"✗ {len(results) - successful} model(s) failed to initialize")
-        print("\nPlease check the error messages above for details.")
+        print(f"✗ {len(results) - successful} 个模型初始化失败")
+        print("\n请检查上述错误信息")
     
     print("\n" + "="*80 + "\n")
 

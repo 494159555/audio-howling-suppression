@@ -1,0 +1,90 @@
+"""
+Configuration for Feature Pyramid Network U-Net (v13)
+Audio Howling Suppression Model
+"""
+
+model:
+  name: AudioUNet5FPN
+  version: 13
+  description: 5-layer U-Net with Feature Pyramid Network for multi-scale feature fusion
+  
+  # FPN parameters
+  fpn_channels: 64
+  use_fpn_fusion: true
+
+training:
+  batch_size: 8
+  num_epochs: 100
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  
+  optimizer: Adam
+  scheduler: CosineAnnealingLR
+  scheduler_params:
+    T_max: 100
+    eta_min: 0.000001
+  
+  loss: MultiTaskLoss
+  loss_params:
+    spectral_weight: 0.5
+    l1_weight: 0.3
+    mse_weight: 0.2
+  
+  # Mixed precision training
+  use_amp: true
+  gradient_clip: 1.0
+  
+  # Early stopping
+  early_stopping:
+    patience: 15
+    min_delta: 0.001
+
+data:
+  sample_rate: 16000
+  chunk_len: 2.0  # seconds
+  n_fft: 512
+  hop_length: 128
+  
+  # Data augmentation
+  use_augmentation: true
+  augmentation:
+    audio_aug: true
+    spec_aug: true
+    mixup: false
+    adversarial: false
+    
+    audio_params:
+      noise_levels: [0.001, 0.01, 0.02, 0.05]
+      volume_factors: [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+      max_shift_ratio: 0.1
+      prob: 0.5
+    
+    spec_params:
+      freq_mask_param: 20
+      time_mask_param: 20
+      num_freq_masks: 2
+      num_time_masks: 2
+      jitter_std: 0.01
+      prob: 0.5
+
+paths:
+  train_clean: data/train/clean
+  train_howling: data/train/howling
+  dev_clean: data/dev/clean
+  dev_howling: data/dev/howling
+  test_clean: data/test/clean
+  test_howling: data/test/howling
+  
+  checkpoint_dir: experiments/unet_v13_fpn/checkpoints
+  log_dir: experiments/unet_v13_fpn/logs
+  result_dir: experiments/unet_v13_fpn/results
+
+logging:
+  log_interval: 10
+  save_interval: 5
+  eval_interval: 1
+  tensorboard: true
+
+device: cuda
+num_workers: 4
+seed: 42

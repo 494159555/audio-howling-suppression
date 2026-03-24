@@ -1,12 +1,6 @@
-"""
-Simple test script to verify all models can be imported and initialized.
+"""模型测试脚本
 
-Usage:
-    python -m scripts.test_models
-
-Author: Research Team
-Date: 2026-3-23
-Version: 1.0.0
+验证所有模型是否可以正确导入和初始化
 """
 
 import torch
@@ -20,7 +14,7 @@ from src.models import (
 )
 
 print("="*80)
-print("Testing All U-Net Models")
+print("测试所有U-Net模型")
 print("="*80)
 
 models = [
@@ -33,17 +27,17 @@ models = [
 ]
 
 sample_input = torch.randn(2, 1, 256, 100)
-print(f"\nSample input shape: {sample_input.shape}\n")
+print(f"\n样本输入形状: {sample_input.shape}\n")
 
 for name, model_class in models:
     try:
         model = model_class()
         output = model(sample_input)
         params = sum(p.numel() for p in model.parameters())
-        print(f"✓ {name:<25} | Params: {params:>10,} | Output: {tuple(output.shape)}")
+        print(f"✓ {name:<25} | 参数量: {params:>10,} | 输出: {tuple(output.shape)}")
     except Exception as e:
-        print(f"✗ {name:<25} | Error: {str(e)[:50]}")
+        print(f"✗ {name:<25} | 错误: {str(e)[:50]}")
 
 print("\n" + "="*80)
-print("All models tested!")
+print("所有模型测试完成!")
 print("="*80)
