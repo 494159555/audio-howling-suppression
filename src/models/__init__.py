@@ -37,6 +37,23 @@ from .augmentation import (
     CombinedAugmentation
 )
 
+# 导入训练策略
+from .training_strategies import (
+    MixedPrecisionTrainer,
+    CosineAnnealingWarmupScheduler,
+    OneCycleScheduler,
+    CurriculumLearning,
+    create_lr_scheduler
+)
+
+# 导入后处理
+from .post_processing import (
+    AdaptivePostProcessing,
+    MultiFrameSmoother,
+    AdaptiveGainControl,
+    PostProcessingPipeline
+)
+
 # 导入传统方法
 from ..traditional.frequency_shift import FrequencyShiftMethod
 from ..traditional.gain_suppression import GainSuppressionMethod
@@ -73,6 +90,19 @@ __all__ = [
     'MixupAugmentation',
     'AdversarialAugmentation',
     'CombinedAugmentation',
+    
+    # 训练策略
+    'MixedPrecisionTrainer',
+    'CosineAnnealingWarmupScheduler',
+    'OneCycleScheduler',
+    'CurriculumLearning',
+    'create_lr_scheduler',
+    
+    # 后处理
+    'AdaptivePostProcessing',
+    'MultiFrameSmoother',
+    'AdaptiveGainControl',
+    'PostProcessingPipeline',
     
     # 传统方法
     'FrequencyShiftMethod',
