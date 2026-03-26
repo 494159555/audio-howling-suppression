@@ -63,11 +63,9 @@ runs/
 .DS_Store
 Thumbs.db
 
-# 忽略所有 markdown 文件
-*.md
-
-# 但是保留项目文档.md
-!项目文档.md
-
-# 忽略文档资料目录
+# 保留重要文档，忽略其他文档资料
 文档资料/
+# 保留以下文档：
+# - README.md
+# - CLAUDE.md
+# - docs/ 目录下的所有文档
