@@ -1,13 +1,85 @@
 """
-U-Net v13 Model - Feature Pyramid Network U-Net for Audio Howling Suppression
+============================================================
+U-Net v13 模型 - 5层U-Net + 特征金字塔网络(FPN)
+============================================================
 
-This module implements a U-Net architecture with a Feature Pyramid Network (FPN)
-that enables multi-scale feature fusion with a top-down pathway and lateral
-connections.
+【文件功能】
+这个文件实现了一个基于特征金字塔网络（FPN）的U-Net架构，
+通过自顶向下路径和横向连接实现强大的多尺度特征融合。
 
-Author: Research Team
-Date: 2026-3-24
-Version: 13.0.0
+【主要组件】
+- AudioUNet5FPN 类：带FPN的5层U-Net
+  - 自底向上路径（编码器）：提取多尺度特征
+  - 横向连接（1×1卷积）：统一通道数
+  - 自顶向下路径（上采样）：传播高层语义信息
+  - 解码器：使用FPN特征重建
+
+【网络架构】
+编码器（自底向上路径）：
+  C1: [B,1,256,T] → [B,16,128,T]
+  C2: [B,16,128,T] → [B,32,64,T]
+  C3: [B,32,64,T] → [B,64,32,T]
+  C4: [B,64,32,T] → [B,128,16,T]
+  C5: [B,128,16,T] → [B,256,8,T]（瓶颈层）
+
+横向连接（1×1卷积）：
+  L5: C5 → [B,64,8,T]
+  L4: C4 → [B,64,16,T]
+  L3: C3 → [B,64,32,T]
+  L2: C2 → [B,64,64,T]
+  L1: C1 → [B,64,128,T]
+
+自顶向下路径（上采样 + 相加）：
+  P5: L5（最顶层）
+  P4: 上采样(P5) + L4
+  P3: 上采样(P4) + L3
+  P2: 上采样(P3) + L2
+  P1: 上采样(P2) + L1（最底层）
+
+解码器（使用FPN特征）：
+  使用P5、P4、P3、P2、P1进行重建
+
+【关键参数说明】
+- fpn_channels: FPN特征图的通道数（默认: 64）
+- use_fpn_fusion: 是否使用FPN融合（默认: True）
+- 平滑层：3×3卷积平滑FPN输出
+- 横向连接：1×1卷积统一通道数
+
+【数据处理流程】
+1. 输入：线性幅度谱 [B, 1, 256, T]
+2. 编码器：自底向上提取特征（C1-C5）
+3. 横向连接：1×1卷积降维（L1-L5）
+4. FPN：自顶向下路径融合（P1-P5）
+5. 解码器：使用融合后的特征重建
+6. 输出：[0,1]掩膜
+7. 最终结果：输入 × 掩膜
+
+【模型特点】
+✓ 强大的多尺度特征融合
+✓ 高层语义信息传播到所有尺度
+✓ 改进的特征表示
+✓ 更好地检测不同尺度的啸叫
+✓ 灵活的架构选择
+
+【与其他版本区别】
+- v2：标准5层U-Net，简单跳跃连接
+- v12：使用金字塔池化模块（PPM）
+- v13（本模型）：使用特征金字塔网络（FPN）
+
+【使用示例】
+```python
+from src.models.unet_v13_fpn import AudioUNet5FPN
+import torch
+
+# 创建模型
+model = AudioUNet5FPN(fpn_channels=64, use_fpn_fusion=True)
+
+# 准备输入
+input_spec = torch.randn(4, 1, 256, 376)
+
+# 前向传播
+output_spec = model(input_spec)  # 输出: [4, 1, 256, 376]
+```
 """
 
 import torch
@@ -16,67 +88,50 @@ import torch.nn.functional as F
 
 
 class AudioUNet5FPN(nn.Module):
-    """5-layer U-Net with Feature Pyramid Network for audio howling suppression.
-    
-    This model enhances the standard U-Net by incorporating a Feature Pyramid
-    Network (FPN) that enables powerful multi-scale feature fusion through:
-    1. Bottom-up pathway (encoder): Extracts multi-scale features
-    2. Top-down pathway (lateral upsampling): Propagates high-level semantic info
-    3. Lateral connections: Combines spatial information from encoder
-    
-    Based on: "Feature Pyramid Networks for Object Detection" (Lin et al., 2017)
-    
-    Network Architecture:
-        Encoder (Bottom-up pathway):
-            C1: [B,1,256,T] -> [B,16,128,T]
-            C2: [B,16,128,T] -> [B,32,64,T]
-            C3: [B,32,64,T] -> [B,64,32,T]
-            C4: [B,64,32,T] -> [B,128,16,T]
-            C5: [B,128,16,T] -> [B,256,8,T] (bottleneck)
-            
-        Lateral Connections (1x1 convolutions):
-            L5: C5 -> [B,64,8,T]
-            L4: C4 -> [B,64,16,T]
-            L3: C3 -> [B,64,32,T]
-            L2: C2 -> [B,64,64,T]
-            L1: C1 -> [B,64,128,T]
-            
-        Top-down Pathway (upsampling + addition):
-            P5: L5
-            P4: Upsample(P5) + L4
-            P3: Upsample(P4) + L3
-            P2: Upsample(P3) + L2
-            P1: Upsample(P2) + L1
-            
-        Decoder (using FPN features):
-            Uses P5, P4, P3, P2, P1 for reconstruction
-            
-    Key Features:
-        - Strong multi-scale feature fusion
-        - High-level semantic information at all scales
-        - Improved feature representation
-        - Better detection of howling at different scales
-    
+    """5层U-Net + 特征金字塔网络用于音频啸叫抑制
+
+    这个模型通过结合特征金字塔网络（FPN）来增强标准U-Net，
+    实现强大的多尺度特征融合：
+    1. 自底向上路径（编码器）：提取多尺度特征
+    2. 自顶向下路径（横向上采样）：传播高层语义信息
+    3. 横向连接：结合编码器的空间信息
+
+    基于： "Feature Pyramid Networks for Object Detection" (Lin et al., 2017)
+
+    【工作原理】
+    1. 编码器：自底向上提取5个尺度的特征
+    2. 横向连接：1×1卷积将所有特征映射到相同通道数
+    3. 自顶向下：从顶层开始，上采样并与横向特征相加
+    4. 平滑：3×3卷积平滑FPN输出
+    5. 解码器：使用融合后的多尺度特征重建
+
+    【输入输出】
+    输入: [batch, 1, 256, time] - 含啸叫的幅度谱
+    输出: [batch, 1, 256, time] - 抑制啸叫后的幅度谱
+
+    【网络层】
+    enc1-enc5: 编码器层（C1-C5）
+    lateral1-lateral5: 横向连接（L1-L5）
+    smooth1-smooth5: 平滑层
+    dec1-dec5: 解码器层
+
     Args:
-        fpn_channels (int): Number of channels in FPN feature maps (default: 64)
-        use_fpn_fusion (bool): Whether to use FPN fusion (default: True)
+        fpn_channels: FPN特征图的通道数（默认: 64）
+        use_fpn_fusion: 是否使用FPN融合（默认: True）
     """
     
     def __init__(self, fpn_channels=64, use_fpn_fusion=True):
-        """
-        Initialize the U-Net with Feature Pyramid Network.
-        
+        """初始化带特征金字塔网络的U-Net
+
         Args:
-            fpn_channels (int): Number of channels for FPN feature maps
-            use_fpn_fusion (bool): Whether to use FPN fusion or standard U-Net
+            fpn_channels: FPN特征图的通道数
+            use_fpn_fusion: 是否使用FPN融合或标准U-Net
         """
         super(AudioUNet5FPN, self).__init__()
 
         self.use_fpn_fusion = use_fpn_fusion
 
-        # ==========================
-        # Encoder (Bottom-up pathway)
-        # ==========================
+        # =================== 编码器（自底向上路径）===================
         
         # C1: [B, 1, 256, T] -> [B, 16, 128, T]
         self.enc1 = nn.Sequential(
@@ -106,35 +161,29 @@ class AudioUNet5FPN(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # C5: [B, 128, 16, T] -> [B, 256, 8, T] (Bottleneck)
+        # C5: [B, 128, 16, T] -> [B, 256, 8, T]（瓶颈层）
         self.enc5 = nn.Sequential(
             nn.Conv2d(128, 256, kernel_size=3, stride=(2, 1), padding=1),
             nn.BatchNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # ==========================
-        # Lateral Connections (1x1 convolutions)
-        # ==========================
-        # Reduce channels to fpn_channels for efficient fusion
+        # =================== 横向连接（1×1卷积）===================
+        # 降维到fpn_channels以高效融合
         self.lateral5 = nn.Conv2d(256, fpn_channels, kernel_size=1)
         self.lateral4 = nn.Conv2d(128, fpn_channels, kernel_size=1)
         self.lateral3 = nn.Conv2d(64, fpn_channels, kernel_size=1)
         self.lateral2 = nn.Conv2d(32, fpn_channels, kernel_size=1)
         self.lateral1 = nn.Conv2d(16, fpn_channels, kernel_size=1)
 
-        # ==========================
-        # Smooth layers (3x3 convolutions for FPN output)
-        # ==========================
+        # =================== 平滑层（3×3卷积用于FPN输出）===================
         self.smooth5 = nn.Conv2d(fpn_channels, fpn_channels, kernel_size=3, padding=1)
         self.smooth4 = nn.Conv2d(fpn_channels, fpn_channels, kernel_size=3, padding=1)
         self.smooth3 = nn.Conv2d(fpn_channels, fpn_channels, kernel_size=3, padding=1)
         self.smooth2 = nn.Conv2d(fpn_channels, fpn_channels, kernel_size=3, padding=1)
         self.smooth1 = nn.Conv2d(fpn_channels, fpn_channels, kernel_size=3, padding=1)
 
-        # ==========================
-        # Decoder (using FPN features)
-        # ==========================
+        # =================== 解码器（使用FPN特征）===================
         
         # Decoder Layer 5
         self.dec5 = nn.Sequential(
@@ -181,103 +230,91 @@ class AudioUNet5FPN(nn.Module):
         )
 
     def _build_fpn(self, c5, c4, c3, c2, c1):
-        """
-        Build Feature Pyramid Network features.
-        
+        """构建特征金字塔网络特征
+
         Args:
-            c5, c4, c3, c2, c1: Encoder feature maps
-            
+            c5, c4, c3, c2, c1: 编码器特征图
+
         Returns:
-            tuple: (p5, p4, p3, p2, p1) FPN feature maps
+            (p5, p4, p3, p2, p1): FPN特征图元组
         """
-        # Apply lateral connections
+        # 应用横向连接
         l5 = self.lateral5(c5)  # [B, 64, 8, T]
         l4 = self.lateral4(c4)  # [B, 64, 16, T]
         l3 = self.lateral3(c3)  # [B, 64, 32, T]
         l2 = self.lateral2(c2)  # [B, 64, 64, T]
         l1 = self.lateral1(c1)  # [B, 64, 128, T]
 
-        # Top-down pathway (upsampling and addition)
-        # Start from top (P5)
+        # 自顶向下路径（上采样和相加）
+        # 从顶层开始（P5）
         p5 = self.smooth5(l5)  # [B, 64, 8, T]
 
-        # P4: Upsample P5 and add L4
+        # P4：上采样P5并与L4相加
         p5_up = F.interpolate(p5, size=l4.shape[2:], mode='bilinear', align_corners=True)
         p4 = self.smooth4(p5_up + l4)  # [B, 64, 16, T]
 
-        # P3: Upsample P4 and add L3
+        # P3：上采样P4并与L3相加
         p4_up = F.interpolate(p4, size=l3.shape[2:], mode='bilinear', align_corners=True)
         p3 = self.smooth3(p4_up + l3)  # [B, 64, 32, T]
 
-        # P2: Upsample P3 and add L2
+        # P2：上采样P3并与L2相加
         p3_up = F.interpolate(p3, size=l2.shape[2:], mode='bilinear', align_corners=True)
         p2 = self.smooth2(p3_up + l2)  # [B, 64, 64, T]
 
-        # P1: Upsample P2 and add L1
+        # P1：上采样P2并与L1相加
         p2_up = F.interpolate(p2, size=l1.shape[2:], mode='bilinear', align_corners=True)
         p1 = self.smooth1(p2_up + l1)  # [B, 64, 128, T]
 
         return p5, p4, p3, p2, p1
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the U-Net with Feature Pyramid Network.
-        
+        """前向传播
+
         Args:
-            x (torch.Tensor): Input spectrogram [B, 1, 256, T]
-            
+            x: 输入频谱 [B, 1, 256, T]
+
         Returns:
-            torch.Tensor: Output spectrogram [B, 1, 256, T]
+            output: 输出频谱 [B, 1, 256, T]
         """
-        # ==========================
-        # Log-domain Feature Extraction
-        # ==========================
+        # =================== 步骤1：输入预处理 ===================
         x_log = torch.log10(x + 1e-8)
 
-        # ==========================
-        # Encoder Forward Pass (Bottom-up)
-        # ==========================
+        # =================== 步骤2：编码器前向传播（自底向上）===================
         c1 = self.enc1(x_log)    # [B, 16, 128, T]
         c2 = self.enc2(c1)        # [B, 32, 64, T]
         c3 = self.enc3(c2)        # [B, 64, 32, T]
         c4 = self.enc4(c3)        # [B, 128, 16, T]
-        c5 = self.enc5(c4)        # [B, 256, 8, T] - Bottleneck
+        c5 = self.enc5(c4)        # [B, 256, 8, T] - 瓶颈层
 
-        # ==========================
-        # Build Feature Pyramid Network
-        # ==========================
+        # =================== 步骤3：构建特征金字塔网络 ===================
         if self.use_fpn_fusion:
             p5, p4, p3, p2, p1 = self._build_fpn(c5, c4, c3, c2, c1)
             decoder_inputs = (p5, p4, p3, p2, p1)
         else:
-            # Use standard encoder features without FPN
+            # 使用标准编码器特征而不使用FPN
             decoder_inputs = (c5, c4, c3, c2, c1)
 
-        # ==========================
-        # Decoder Forward Pass
-        # ==========================
+        # =================== 步骤4：解码器前向传播 ===================
         
-        # Decoder Layer 5
+        # 解码器第5层
         d5 = self.dec5(decoder_inputs[0])    # [B, 128, 16, T]
         d5_cat = torch.cat([d5, decoder_inputs[1]], dim=1)  # [B, 256, 16, T]
 
-        # Decoder Layer 4
+        # 解码器第4层
         d4 = self.dec4(d5_cat)    # [B, 64, 32, T]
         d4_cat = torch.cat([d4, decoder_inputs[2]], dim=1)  # [B, 128, 32, T]
 
-        # Decoder Layer 3
+        # 解码器第3层
         d3 = self.dec3(d4_cat)    # [B, 32, 64, T]
         d3_cat = torch.cat([d3, decoder_inputs[3]], dim=1)  # [B, 64, 64, T]
 
-        # Decoder Layer 2
+        # 解码器第2层
         d2 = self.dec2(d3_cat)    # [B, 16, 128, T]
         d2_cat = torch.cat([d2, decoder_inputs[4]], dim=1)  # [B, 32, 128, T]
 
-        # Final Layer - Generate Mask
+        # 最终层：生成掩膜
         mask = self.dec1(d2_cat)  # [B, 1, 256, T]
 
-        # ==========================
-        # Multiplicative Masking
-        # ==========================
+        # =================== 步骤5：应用掩膜 ===================
         output = x * mask
         return output

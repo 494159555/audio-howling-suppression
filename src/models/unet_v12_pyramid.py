@@ -1,12 +1,94 @@
 """
-U-Net v12 Model - Pyramid Pooling U-Net for Audio Howling Suppression
+============================================================
+U-Net v12 模型 - 5层U-Net + 金字塔池化模块
+============================================================
 
-This module implements a U-Net architecture with a Pyramid Pooling Module (PPM)
-at the bottleneck layer to capture multi-scale context information.
+【文件功能】
+这个文件实现了一个在瓶颈层使用金字塔池化模块（PPM）的U-Net架构，
+用于捕获多尺度上下文信息，提高音频啸叫抑制效果。
 
-Author: Research Team
-Date: 2026-3-24
-Version: 12.0.0
+【主要组件】
+- PyramidPoolingModule 类：金字塔池化模块
+  - 多尺度自适应平均池化
+  - 特征上采样和拼接
+  - 通道投影
+- AudioUNet5Pyramid 类：带PPM的5层U-Net
+
+【网络架构】
+编码器（下采样）：
+  输入: [B, 1, 256, T]
+    ↓
+  enc1: [B, 1, 256, T] → [B, 16, 128, T]
+    ↓
+  enc2: [B, 16, 128, T] → [B, 32, 64, T]
+    ↓
+  enc3: [B, 32, 64, T] → [B, 64, 32, T]
+    ↓
+  enc4: [B, 64, 32, T] → [B, 128, 16, T]
+    ↓
+  enc5: [B, 128, 16, T] → [B, 256, 8, T]（瓶颈层）
+
+金字塔池化模块（瓶颈层）：
+  输入: [B, 256, 8, T]
+    ↓ 4个不同尺度的池化
+  池化1: [B, 256, 8, T] → [B, 64, 1, 1] → 上采样 → [B, 64, 8, T]
+  池化2: [B, 256, 8, T] → [B, 64, 2, 2] → 上采样 → [B, 64, 8, T]
+  池化3: [B, 256, 8, T] → [B, 64, 3, 3] → 上采样 → [B, 64, 8, T]
+  池化4: [B, 256, 8, T] → [B, 64, 6, 6] → 上采样 → [B, 64, 8, T]
+    ↓ 拼接 + 投影
+  输出: [B, 256, 8, T]
+
+解码器（上采样）：
+  dec5: [B, 256, 8, T] → [B, 128, 16, T] + enc4跳跃连接
+    ↓
+  dec4: [B, 256, 16, T] → [B, 64, 32, T] + enc3跳跃连接
+    ↓
+  dec3: [B, 128, 32, T] → [B, 32, 64, T] + enc2跳跃连接
+    ↓
+  dec2: [B, 64, 64, T] → [B, 16, 128, T] + enc1跳跃连接
+    ↓
+  dec1: [B, 32, 128, T] → [B, 1, 256, T]
+
+【关键参数说明】
+- pyramid_levels: 金字塔层级（默认：(1, 2, 3, 6)）
+- reduction_ratio: 通道降维比率（默认: 4）
+- 池化尺度：1×1, 2×2, 3×3, 6×6
+- 激活函数：LeakyReLU(0.2)，ReLU，Sigmoid
+
+【数据处理流程】
+1. 输入：线性幅度谱 [B, 1, 256, T]
+2. Log变换：log10(x + 1e-8)
+3. 编码器：提取5个尺度的特征
+4. PPM：在瓶颈层捕获多尺度上下文
+5. 解码器：通过跳跃连接重建频谱
+6. 输出：[0,1]掩膜
+7. 最终结果：输入 × 掩膜
+
+【模型特点】
+✓ 多尺度上下文：在瓶颈层聚合不同尺度的信息
+✓ 全局感知：通过大尺度池化捕获全局信息
+✓ 局部细节：保留小尺度池化的局部信息
+✓ 参数高效：使用通道降维减少参数量
+✓ 性能提升：最小参数增加带来性能提升
+
+【与其他版本区别】
+- v2：标准5层U-Net
+- v12（本模型）：添加金字塔池化模块，捕获多尺度上下文
+
+【使用示例】
+```python
+from src.models.unet_v12_pyramid import AudioUNet5Pyramid
+import torch
+
+# 创建模型
+model = AudioUNet5Pyramid(pyramid_levels=(1, 2, 3, 6))
+
+# 准备输入
+input_spec = torch.randn(4, 1, 256, 376)
+
+# 前向传播
+output_spec = model(input_spec)  # 输出: [4, 1, 256, 376]
+```
 """
 
 import torch
@@ -15,31 +97,36 @@ import torch.nn.functional as F
 
 
 class PyramidPoolingModule(nn.Module):
-    """Pyramid Pooling Module (PPM) for multi-scale context aggregation.
-    
-    This module captures multi-scale context information by applying
-    adaptive average pooling at different scales, then upsampling and
-    concatenating the features.
-    
-    Based on: "Pyramid Scene Parsing Network" (Zhao et al., 2017)
-    
+    """金字塔池化模块（PPM）用于多尺度上下文聚合
+
+    该模块通过在不同尺度上应用自适应平均池化来捕获
+    多尺度上下文信息，然后上采样并拼接特征。
+
+    基于： "Pyramid Scene Parsing Network" (Zhao et al., 2017)
+
+    【工作原理】
+    1. 对输入特征应用4个不同尺度的自适应平均池化
+    2. 每个池化分支通过1×1卷积降维
+    3. 上采样回原始尺寸
+    4. 拼接所有分支并投影回原始通道数
+
     Args:
-        in_channels (int): Number of input channels
-        pool_sizes (tuple): List of pooling output sizes (default: (1, 2, 3, 6))
-        reduction_ratio (int): Channel reduction ratio for efficiency
+        in_channels: 输入通道数
+        pool_sizes: 池化输出尺寸列表（默认: (1, 2, 3, 6)）
+        reduction_ratio: 通道降维比率
     """
     
     def __init__(self, in_channels, pool_sizes=(1, 2, 3, 6), reduction_ratio=4):
         super(PyramidPoolingModule, self).__init__()
-        
-        # Number of pyramid levels
+
+        # 金字塔层数
         self.pool_sizes = pool_sizes
         self.num_levels = len(pool_sizes)
-        
-        # Calculate reduced channels per level
+
+        # 计算每层的降维通道数
         reduced_channels = in_channels // reduction_ratio
-        
-        # Create pyramid branches
+
+        # 创建金字塔分支
         self.pyramid_branches = nn.ModuleList([
             nn.Sequential(
                 nn.AdaptiveAvgPool2d(output_size=size),
@@ -49,32 +136,31 @@ class PyramidPoolingModule(nn.Module):
             )
             for size in pool_sizes
         ])
-        
-        # Output projection to restore original channel dimension
+
+        # 输出投影以恢复原始通道维度
         self.out_conv = nn.Sequential(
             nn.Conv2d(in_channels + reduced_channels * self.num_levels, in_channels, kernel_size=1),
             nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True)
         )
-    
+
     def forward(self, x):
-        """
-        Apply pyramid pooling module.
-        
+        """应用金字塔池化模块
+
         Args:
-            x (torch.Tensor): Input feature map [B, C, H, W]
-            
+            x: 输入特征图 [B, C, H, W]
+
         Returns:
-            torch.Tensor: Output feature map with multi-scale context [B, C, H, W]
+            output: 带有多尺度上下文的输出特征图 [B, C, H, W]
         """
         input_size = x.size()[2:]
-        
-        # Apply each pyramid level
+
+        # 应用每个金字塔层级
         pyramid_features = []
         for branch in self.pyramid_branches:
-            # Pool and project
+            # 池化和投影
             pooled = branch(x)
-            # Upsample to original size
+            # 上采样回原始尺寸
             upsampled = F.interpolate(
                 pooled,
                 size=input_size,
@@ -82,116 +168,98 @@ class PyramidPoolingModule(nn.Module):
                 align_corners=True
             )
             pyramid_features.append(upsampled)
-        
-        # Concatenate original and pyramid features
+
+        # 拼接原始特征和金字塔特征
         pyramid_concat = torch.cat([x] + pyramid_features, dim=1)
-        
-        # Project back to original channels
+
+        # 投影回原始通道数
         output = self.out_conv(pyramid_concat)
-        
+
         return output
 
 
 class AudioUNet5Pyramid(nn.Module):
-    """5-layer U-Net with Pyramid Pooling for audio howling suppression.
-    
-    This model extends the standard 5-layer U-Net by adding a Pyramid Pooling
-    Module at the bottleneck layer, enabling the model to capture multi-scale
-    context information for better howling suppression.
-    
-    Network Architecture:
-        Encoder (Downsampling):
-            enc1: [B,1,256,T] -> [B,16,128,T]
-            enc2: [B,16,128,T] -> [B,32,64,T]
-            enc3: [B,32,64,T] -> [B,64,32,T]
-            enc4: [B,64,32,T] -> [B,128,16,T]
-            enc5: [B,128,16,T] -> [B,256,8,T] (bottleneck)
-            
-        Pyramid Pooling Module:
-            Applied at bottleneck [B,256,8,T]
-            Multi-scale pooling with levels (1, 2, 3, 6)
-            
-        Decoder (Upsampling):
-            dec5: [B,256,8,T] -> [B,128,16,T] + enc4 skip connection
-            dec4: [B,256,16,T] -> [B,64,32,T] + enc3 skip connection
-            dec3: [B,128,32,T] -> [B,32,64,T] + enc2 skip connection
-            dec2: [B,64,64,T] -> [B,16,128,T] + enc1 skip connection
-            dec1: [B,32,128,T] -> [B,1,256,T] + enc1 skip connection
-    
-    Key Features:
-        - Multi-scale context aggregation at bottleneck
-        - Captures both local and global information
-        - Improves feature representation
-        - Minimal parameter increase
-    
+    """5层U-Net + 金字塔池化用于音频啸叫抑制
+
+    这个模型通过在瓶颈层添加金字塔池化模块来扩展
+    标准5层U-Net，使模型能够捕获多尺度上下文信息。
+
+    【工作原理】
+    1. 编码器：提取5个尺度的空间特征
+    2. PPM：在瓶颈层聚合多尺度上下文信息
+    3. 解码器：通过跳跃连接重建频谱
+    4. 多尺度特征：增强特征表示能力
+
+    【输入输出】
+    输入: [batch, 1, 256, time] - 含啸叫的幅度谱
+    输出: [batch, 1, 256, time] - 抑制啸叫后的幅度谱
+
+    【网络层】
+    enc1-enc5: 5层编码器
+    ppm: 金字塔池化模块
+    dec1-dec5: 5层解码器
+
     Args:
-        pyramid_levels (tuple): Pooling sizes for PPM (default: (1, 2, 3, 6))
-        reduction_ratio (int): Channel reduction ratio for PPM (default: 4)
+        pyramid_levels: PPM的池化尺寸（默认: (1, 2, 3, 6)）
+        reduction_ratio: PPM的通道降维比率（默认: 4）
     """
     
     def __init__(self, pyramid_levels=(1, 2, 3, 6), reduction_ratio=4):
-        """
-        Initialize the U-Net with Pyramid Pooling.
-        
+        """初始化带金字塔池化的U-Net
+
         Args:
-            pyramid_levels (tuple): Pooling sizes for pyramid pooling module
-            reduction_ratio (int): Channel reduction ratio for efficiency
+            pyramid_levels: 金字塔池化模块的池化尺寸
+            reduction_ratio: 通道降维比率
         """
         super(AudioUNet5Pyramid, self).__init__()
 
-        # ==========================
-        # Encoder (Downsampling) - 5 Layers
-        # ==========================
+        # =================== 编码器部分（5层）===================
         
-        # Layer 1: [B, 1, 256, T] -> [B, 16, 128, T]
+        # 编码器第1层：输入 [B,1,256,T] -> 输出 [B,16,128,T]
         self.enc1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=3, stride=(2, 1), padding=1),
             nn.BatchNorm2d(16),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # Layer 2: [B, 16, 128, T] -> [B, 32, 64, T]
+        # 编码器第2层：输入 [B,16,128,T] -> 输出 [B,32,64,T]
         self.enc2 = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=3, stride=(2, 1), padding=1),
             nn.BatchNorm2d(32),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # Layer 3: [B, 32, 64, T] -> [B, 64, 32, T]
+        # 编码器第3层：输入 [B,32,64,T] -> 输出 [B,64,32,T]
         self.enc3 = nn.Sequential(
             nn.Conv2d(32, 64, kernel_size=3, stride=(2, 1), padding=1),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # Layer 4: [B, 64, 32, T] -> [B, 128, 16, T]
+        # 编码器第4层：输入 [B,64,32,T] -> 输出 [B,128,16,T]
         self.enc4 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, stride=(2, 1), padding=1),
             nn.BatchNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # Layer 5: [B, 128, 16, T] -> [B, 256, 8, T] (Bottleneck)
+        # 编码器第5层（瓶颈层）：输入 [B,128,16,T] -> 输出 [B,256,8,T]
         self.enc5 = nn.Sequential(
             nn.Conv2d(128, 256, kernel_size=3, stride=(2, 1), padding=1),
             nn.BatchNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        # ==========================
-        # Pyramid Pooling Module at Bottleneck
-        # ==========================
+        # =================== 金字塔池化模块（瓶颈层）===================
         self.ppm = PyramidPoolingModule(
             in_channels=256,
             pool_sizes=pyramid_levels,
             reduction_ratio=reduction_ratio
         )
 
-        # ==========================
-        # Decoder (Upsampling) - 5 Layers
-        # ==========================
+        # =================== 解码器部分（5层）===================
         
-        # Layer 5: [B, 256, 8, T] -> [B, 128, 16, T]
+        # 解码器第5层：输入 [B,256,8,T] -> 输出 [B,128,16,T]
         self.dec5 = nn.Sequential(
             nn.ConvTranspose2d(
                 256, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
@@ -200,7 +268,7 @@ class AudioUNet5Pyramid(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # Layer 4: [B, 128+128, 16, T] -> [B, 64, 32, T]
+        # 解码器第4层：输入 [B,256,16,T] (拼接后) -> 输出 [B,64,32,T]
         self.dec4 = nn.Sequential(
             nn.ConvTranspose2d(
                 256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
@@ -209,7 +277,7 @@ class AudioUNet5Pyramid(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # Layer 3: [B, 64+64, 32, T] -> [B, 32, 64, T]
+        # 解码器第3层：输入 [B,128,32,T] (拼接后) -> 输出 [B,32,64,T]
         self.dec3 = nn.Sequential(
             nn.ConvTranspose2d(
                 128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
@@ -218,7 +286,7 @@ class AudioUNet5Pyramid(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # Layer 2: [B, 32+32, 64, T] -> [B, 16, 128, T]
+        # 解码器第2层：输入 [B,64,64,T] (拼接后) -> 输出 [B,16,128,T]
         self.dec2 = nn.Sequential(
             nn.ConvTranspose2d(
                 64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
@@ -227,68 +295,57 @@ class AudioUNet5Pyramid(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # Layer 1: [B, 16+16, 128, T] -> [B, 1, 256, T]
+        # 解码器第1层（输出层）：输入 [B,32,128,T] (拼接后) -> 输出 [B,1,256,T]
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(
                 32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
-            nn.Sigmoid(),  # Output multiplicative mask in [0, 1] range
+            nn.Sigmoid(),  # Sigmoid将输出限制在[0,1]，生成掩膜
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the U-Net with Pyramid Pooling.
-        
+        """前向传播
+
         Args:
-            x (torch.Tensor): Input spectrogram [B, 1, 256, T]
-            
+            x: 输入频谱 [B, 1, 256, T]
+
         Returns:
-            torch.Tensor: Output spectrogram [B, 1, 256, T]
+            output: 输出频谱 [B, 1, 256, T]
         """
-        # ==========================
-        # Log-domain Feature Extraction
-        # ==========================
+        # =================== 步骤1：输入预处理 ===================
         x_log = torch.log10(x + 1e-8)
 
-        # ==========================
-        # Encoder Forward Pass
-        # ==========================
+        # =================== 步骤2：编码器前向传播 ===================
         e1 = self.enc1(x_log)    # [B, 16, 128, T]
         e2 = self.enc2(e1)        # [B, 32, 64, T]
         e3 = self.enc3(e2)        # [B, 64, 32, T]
         e4 = self.enc4(e3)        # [B, 128, 16, T]
-        e5 = self.enc5(e4)        # [B, 256, 8, T] - Bottleneck
+        e5 = self.enc5(e4)        # [B, 256, 8, T] - 瓶颈层
 
-        # ==========================
-        # Apply Pyramid Pooling Module at Bottleneck
-        # ==========================
-        # Capture multi-scale context information
+        # =================== 步骤3：应用金字塔池化模块（瓶颈层）===================
+        # 捕获多尺度上下文信息
         e5_ppm = self.ppm(e5)     # [B, 256, 8, T]
 
-        # ==========================
-        # Decoder Forward Pass with Skip Connections
-        # ==========================
-        # Decoder Layer 5 + Skip Connection 4
+        # =================== 步骤4：解码器前向传播 + 跳跃连接 ===================
+        # 解码器第5层 + enc4跳跃连接
         d5 = self.dec5(e5_ppm)    # [B, 128, 16, T]
         d5_cat = torch.cat([d5, e4], dim=1)  # [B, 256, 16, T]
 
-        # Decoder Layer 4 + Skip Connection 3
+        # 解码器第4层 + enc3跳跃连接
         d4 = self.dec4(d5_cat)    # [B, 64, 32, T]
         d4_cat = torch.cat([d4, e3], dim=1)  # [B, 128, 32, T]
 
-        # Decoder Layer 3 + Skip Connection 2
+        # 解码器第3层 + enc2跳跃连接
         d3 = self.dec3(d4_cat)    # [B, 32, 64, T]
         d3_cat = torch.cat([d3, e2], dim=1)  # [B, 64, 64, T]
 
-        # Decoder Layer 2 + Skip Connection 1
+        # 解码器第2层 + enc1跳跃连接
         d2 = self.dec2(d3_cat)    # [B, 16, 128, T]
         d2_cat = torch.cat([d2, e1], dim=1)  # [B, 32, 128, T]
 
-        # Final Decoder Layer - Generate Mask
+        # 解码器第1层：生成最终的掩膜
         mask = self.dec1(d2_cat)  # [B, 1, 256, T]
 
-        # ==========================
-        # Multiplicative Masking
-        # ==========================
+        # =================== 步骤5：应用掩膜 ===================
         output = x * mask
         return output

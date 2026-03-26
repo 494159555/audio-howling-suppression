@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -1 src/models/unet_*.py src/models/CNN.py src/models/RNN.py)",
+      "Bash(xargs -n1 basename)",
+      "Bash(ls -1 configs/*.yaml)",
+      "Bash(ls -1 src/models/unet_*.py)",
+      "Bash(cd:*)"
+    ]
+  }
+}

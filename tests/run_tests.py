@@ -9,16 +9,18 @@ Supported Test Modes:
 - quick: Quick environment check (imports, data availability)
 - evaluation: Traditional method performance evaluation
 - full: Comprehensive testing (including deep learning models)
+- models: Test all U-Net model variants and loss functions
 
 Usage:
     python tests/run_tests.py --mode quick
     python tests/run_tests.py --mode evaluation
     python tests/run_tests.py --mode full
+    python tests/run_tests.py --mode models
     python tests/run_tests.py --modules traditional,evaluation
 
 Author: Research Team
 Date: 2026-3-23
-Version: 2.0.0
+Version: 3.0.0
 """
 
 import sys
@@ -314,36 +316,184 @@ def test_deep_learning_models():
 def test_evaluation_system():
     """测试评估系统"""
     print("\n测试评估系统...")
-    
+
     try:
         from src.evaluation import AudioMetrics, AudioVisualizer, MethodComparator
-        
+
         # 创建测试数据
         batch_size, freq_bins, time_frames = 2, 256, 128
         clean = torch.randn(batch_size, 1, freq_bins, time_frames)
         noisy = clean + 0.1 * torch.randn_like(clean)
         enhanced = clean + 0.05 * torch.randn_like(clean)
-        
+
         # 测试指标计算
         metrics_calculator = AudioMetrics()
         snr = metrics_calculator.calculate_snr(clean, enhanced, noisy)
         psnr = metrics_calculator.calculate_psnr(clean, enhanced)
         stoi = metrics_calculator.calculate_stoi(clean, enhanced)
-        
+
         print(f"[OK] 指标计算: SNR={snr:.2f}dB, PSNR={psnr:.2f}dB, STOI={stoi:.3f}")
-        
+
         # 测试可视化器
         visualizer = AudioVisualizer(save_dir="test_visualizations")
         print("[OK] 可视化器创建成功")
-        
+
         # 测试对比器
         comparator = MethodComparator()
         print("[OK] 对比器创建成功")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"[ERROR] 评估系统测试失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def test_all_unet_models():
+    """测试所有U-Net模型变体"""
+    print("\n" + "="*60)
+    print("Testing All U-Net Models")
+    print("="*60)
+
+    try:
+        from src.models import (
+            AudioUNet3,
+            AudioUNet5,
+            AudioUNet5Attention,
+            AudioUNet5Residual,
+            AudioUNet5Dilated,
+            AudioUNet5Optimized,
+            AudioUNet5LSTM,
+            AudioUNet5TemporalAttention,
+            AudioUNet5ConvLSTM,
+            AudioUNet5GAN,
+        )
+        from src.config import cfg
+
+        device = cfg.DEVICE
+        models = [
+            (AudioUNet3, "AudioUNet3"),
+            (AudioUNet5, "AudioUNet5"),
+            (AudioUNet5Attention, "AudioUNet5Attention"),
+            (AudioUNet5Residual, "AudioUNet5Residual"),
+            (AudioUNet5Dilated, "AudioUNet5Dilated"),
+            (AudioUNet5Optimized, "AudioUNet5Optimized"),
+            (AudioUNet5LSTM, "AudioUNet5LSTM"),
+            (AudioUNet5TemporalAttention, "AudioUNet5TemporalAttention"),
+            (AudioUNet5ConvLSTM, "AudioUNet5ConvLSTM"),
+            (AudioUNet5GAN, "AudioUNet5GAN"),
+        ]
+
+        model_results = []
+        for model_class, model_name in models:
+            try:
+                print(f"  Testing {model_name}...")
+                model = model_class().to(device)
+
+                # Create dummy input
+                x = torch.randn(1, 1, 256, 100).to(device)
+
+                # Forward pass
+                with torch.no_grad():
+                    if hasattr(model, 'generator'):
+                        # GAN model
+                        output = model.generator(x)
+                    else:
+                        output = model(x)
+
+                num_params = sum(p.numel() for p in model.parameters())
+                print(f"    ✓ {model_name}: Input {x.shape} -> Output {output.shape}")
+                print(f"    Parameters: {num_params:,}")
+                model_results.append((model_name, True))
+            except Exception as e:
+                print(f"    ✗ {model_name}: {e}")
+                model_results.append((model_name, False))
+
+        # Summary
+        print("\nModels:")
+        passed = 0
+        for name, result in model_results:
+            status = "✓ PASS" if result else "✗ FAIL"
+            print(f"  {status}: {name}")
+            if result:
+                passed += 1
+
+        print(f"\nTotal: {passed}/{len(model_results)} models passed")
+        return all(r for _, r in model_results)
+
+    except Exception as e:
+        print(f"[ERROR] U-Net models test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def test_loss_functions():
+    """测试损失函数"""
+    print("\n" + "="*60)
+    print("Testing Loss Functions")
+    print("="*60)
+
+    try:
+        from src.models import (
+            SpectralLoss,
+            MultiTaskLoss,
+            SpectralConsistencyLoss,
+            AdversarialLoss,
+            Discriminator,
+        )
+
+        loss_functions = [
+            (SpectralLoss, "SpectralLoss"),
+            (MultiTaskLoss, "MultiTaskLoss"),
+            (SpectralConsistencyLoss, "SpectralConsistencyLoss"),
+            (AdversarialLoss, "AdversarialLoss"),
+            (Discriminator, "Discriminator"),
+        ]
+
+        loss_results = []
+        for loss_class, loss_name in loss_functions:
+            try:
+                print(f"  Testing {loss_name}...")
+                loss_fn = loss_class()
+
+                # Create dummy inputs
+                pred = torch.randn(2, 1, 256, 100).abs()
+                target = torch.randn(2, 1, 256, 100).abs()
+
+                # Compute loss
+                if loss_name == "AdversarialLoss":
+                    # Adversarial loss needs different inputs
+                    fake_pred = torch.randn(2, 1)
+                    real_pred = torch.randn(2, 1)
+                    g_loss = loss_fn.generator_loss(fake_pred)
+                    d_loss = loss_fn.discriminator_loss(real_pred, fake_pred)
+                    print(f"    ✓ {loss_name}: G_loss={g_loss.item():.4f}, D_loss={d_loss.item():.4f}")
+                else:
+                    loss = loss_fn(pred, target)
+                    print(f"    ✓ {loss_name}: Loss={loss.item():.4f}")
+
+                loss_results.append((loss_name, True))
+            except Exception as e:
+                print(f"    ✗ {loss_name}: {e}")
+                loss_results.append((loss_name, False))
+
+        # Summary
+        print("\nLoss Functions:")
+        passed = 0
+        for name, result in loss_results:
+            status = "✓ PASS" if result else "✗ FAIL"
+            print(f"  {status}: {name}")
+            if result:
+                passed += 1
+
+        print(f"\nTotal: {passed}/{len(loss_results)} loss functions passed")
+        return all(r for _, r in loss_results)
+
+    except Exception as e:
+        print(f"[ERROR] Loss functions test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -354,7 +504,7 @@ def run_predefined_tests(mode):
     print("="*80)
     print(f"音频啸叫抑制项目测试 - 模式: {mode.upper()}")
     print("="*80)
-    
+
     test_suites = {
         'quick': [
             ("模块导入", test_imports),
@@ -369,6 +519,10 @@ def run_predefined_tests(mode):
             ("传统方法", test_traditional_methods),
             ("深度学习模型", test_deep_learning_models),
             ("评估系统", test_evaluation_system)
+        ],
+        'models': [
+            ("所有U-Net模型", test_all_unet_models),
+            ("损失函数", test_loss_functions)
         ]
     }
     
@@ -412,14 +566,16 @@ def run_custom_tests(modules):
     print("="*80)
     print(f"音频啸叫抑制项目测试 - 自定义模块: {', '.join(modules)}")
     print("="*80)
-    
+
     available_tests = {
         'imports': ("模块导入", test_imports),
         'data': ("数据可用性", test_data_availability),
         'traditional': ("传统方法", test_traditional_methods),
         'traditional_eval': ("传统方法评估", test_traditional_methods_evaluation),
         'models': ("深度学习模型", test_deep_learning_models),
-        'evaluation': ("评估系统", test_evaluation_system)
+        'evaluation': ("评估系统", test_evaluation_system),
+        'unet_models': ("所有U-Net模型", test_all_unet_models),
+        'loss_functions': ("损失函数", test_loss_functions)
     }
     
     results = []
@@ -462,25 +618,26 @@ def run_custom_tests(modules):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description='音频啸叫抑制项目测试脚本')
-    parser.add_argument('--mode', choices=['quick', 'evaluation', 'full'], default='quick',
-                        help='测试模式: quick(快速检查), evaluation(性能评估), full(全面测试)')
-    parser.add_argument('--modules', nargs='+', 
-                        help='自定义测试模块: imports, data, traditional, traditional_eval, models, evaluation')
-    
+    parser.add_argument('--mode', choices=['quick', 'evaluation', 'full', 'models'], default='quick',
+                        help='测试模式: quick(快速检查), evaluation(性能评估), full(全面测试), models(所有U-Net模型和损失函数)')
+    parser.add_argument('--modules', nargs='+',
+                        help='自定义测试模块: imports, data, traditional, traditional_eval, models, evaluation, unet_models, loss_functions')
+
     args = parser.parse_args()
-    
+
     if args.modules:
         success = run_custom_tests(args.modules)
     else:
         success = run_predefined_tests(args.mode)
-    
+
     # 提供使用建议
     if success:
         print("\n使用建议:")
-        print("1. 快速评估传统方法: python -m tests.run_tests --mode evaluation")
-        print("2. 全面测试所有功能: python -m tests.run_tests --mode full")
-        print("3. 自定义测试模块: python -m tests.run_tests --modules imports,traditional")
-    
+        print("1. 快速评估传统方法: python tests/run_tests.py --mode evaluation")
+        print("2. 全面测试所有功能: python tests/run_tests.py --mode full")
+        print("3. 测试所有U-Net模型: python tests/run_tests.py --mode models")
+        print("4. 自定义测试模块: python tests/run_tests.py --modules imports,unet_models")
+
     return 0 if success else 1
 
 

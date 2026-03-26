@@ -1,13 +1,79 @@
 """
-U-Net v11 Model - Multi-scale U-Net for Audio Howling Suppression
+============================================================
+U-Net v11 模型 - 多尺度U-Net并行处理
+============================================================
 
-This module implements a multi-scale U-Net architecture that uses multiple
-U-Nets of different depths to process different frequency ranges, providing
-specialized processing for low, mid, and high frequency bands.
+【文件功能】
+这个文件实现了一个多尺度U-Net架构，使用不同深度的U-Net
+处理不同的频率范围，为低频、中频和高频提供专门的处理。
 
-Author: Research Team
-Date: 2026-3-24
-Version: 11.0.0
+【主要组件】
+- AudioUNet3 类：3层U-Net，处理低频（0-64 bins）
+- AudioUNet5 类：5层U-Net，处理中频（64-192 bins）
+- AudioUNet7 类：7层U-Net，处理高频（192-256 bins）
+- AudioUNet5MultiScale 类：多尺度融合模型
+
+【网络架构】
+整体架构：
+  输入: [B, 1, 256, T]
+    ↓ 分成3个频段
+  低频 [0:64]: [B, 1, 64, T] → AudioUNet3（浅层，快速）
+  中频 [64:192]: [B, 1, 128, T] → AudioUNet5（平衡）
+  高频 [192:256]: [B, 1, 64, T] → AudioUNet7（深层，精细）
+    ↓ 拼接输出
+  融合: [B, 3, 256, T] → 1×1卷积 → [B, 1, 256, T]
+
+AudioUNet3（3层）：
+  编码器: [B,1,64,T] → [B,16,32,T] → [B,32,16,T] → [B,64,8,T]
+  解码器: [B,64,8,T] → [B,32,16,T] → [B,16,32,T] → [B,1,64,T]
+
+AudioUNet5（5层）：
+  编码器: [B,1,128,T] → ... → [B,256,4,T]
+  解码器: [B,256,4,T] → ... → [B,1,128,T]
+
+AudioUNet7（7层）：
+  编码器: [B,1,64,T] → ... → [B,1024,1,T]
+  解码器: [B,1024,1,T] → ... → [B,1,64,T]
+
+【关键参数说明】
+- 低频处理：3层U-Net，参数少，速度快
+- 中频处理：5层U-Net，平衡性能和速度
+- 高频处理：7层U-Net，深层，精细处理
+- 融合方式：1×1卷积融合3个尺度的输出
+
+【数据处理流程】
+1. 输入：线性幅度谱 [B, 1, 256, T]
+2. 分频段：分成低、中、高三个频段
+3. 并行处理：每个频段用专门的U-Net处理
+4. 融合：拼接三个输出并通过1×1卷积
+5. 输出：[0,1]掩膜
+6. 最终结果：输入 × 掩膜
+
+【模型特点】
+✓ 分频处理：不同频段用不同深度的网络
+✓ 高效计算：低频用浅层网络，节省计算
+✓ 精细处理：高频用深层网络，提高细节
+✓ 灵活架构：可根据频率特性调整网络深度
+✓ 多尺度融合：融合不同尺度的特征
+
+【与其他版本区别】
+- v2：单一5层U-Net处理所有频段
+- v11（本模型）：多个不同深度U-Net处理不同频段
+
+【使用示例】
+```python
+from src.models.unet_v11_multiscale import AudioUNet5MultiScale
+import torch
+
+# 创建模型
+model = AudioUNet5MultiScale()
+
+# 准备输入
+input_spec = torch.randn(4, 1, 256, 376)
+
+# 前向传播
+output_spec = model(input_spec)  # 输出: [4, 1, 256, 376]
+```
 """
 
 import torch
@@ -15,7 +81,7 @@ import torch.nn as nn
 
 
 class AudioUNet3(nn.Module):
-    """3-layer U-Net for low-frequency processing."""
+    """3层U-Net用于低频处理"""
     
     def __init__(self):
         super(AudioUNet3, self).__init__()
@@ -82,7 +148,10 @@ class AudioUNet3(nn.Module):
 
 
 class AudioUNet7(nn.Module):
-    """7-layer U-Net for high-frequency processing."""
+    """7层U-Net用于高频处理
+
+    深层网络，参数多，处理精细的高频段处理单元。
+    """
     
     def __init__(self):
         super(AudioUNet7, self).__init__()
@@ -221,7 +290,10 @@ class AudioUNet7(nn.Module):
 
 
 class AudioUNet5(nn.Module):
-    """5-layer U-Net for mid-frequency processing."""
+    """5层U-Net用于中频处理
+
+    平衡的网络深度，兼顾性能和速度的中频段处理单元。
+    """
     
     def __init__(self):
         super(AudioUNet5, self).__init__()
@@ -324,42 +396,43 @@ class AudioUNet5(nn.Module):
 
 
 class AudioUNet5MultiScale(nn.Module):
-    """Multi-scale U-Net for audio howling suppression.
-    
-    This model uses multiple U-Nets of different depths to process different
-    frequency ranges:
-        - Low frequencies (0-64 bins): 3-layer U-Net (shallow, fast)
-        - Mid frequencies (64-192 bins): 5-layer U-Net (balanced)
-        - High frequencies (192-256 bins): 7-layer U-Net (deep, detailed)
-    
-    The outputs are then fused using a 1x1 convolution to produce the final
-    multiplicative mask.
-    
-    Network Architecture:
-        Input: [B, 1, 256, T]
-        Split into:
-            - Low freq: [B, 1, 64, T] -> AudioUNet3
-            - Mid freq: [B, 1, 128, T] -> AudioUNet5
-            - High freq: [B, 1, 64, T] -> AudioUNet7
-        Fuse: Concatenate [B, 3, 256, T] -> 1x1 Conv -> [B, 1, 256, T]
-        
-    Key Features:
-        - Specialized processing for different frequency bands
-        - Efficient use of computational resources
-        - Better frequency resolution
-        - Flexible architecture for different audio characteristics
+    """多尺度U-Net用于音频啸叫抑制
+
+    这个模型使用不同深度的多个U-Net处理不同的频率范围：
+    - 低频（0-64 bins）：3层U-Net（浅层，快速）
+    - 中频（64-192 bins）：5层U-Net（平衡）
+    - 高频（192-256 bins）：7层U-Net（深层，精细）
+
+    输出通过1×1卷积融合，生成最终的乘性掩膜。
+
+    【工作原理】
+    1. 分频：将输入频谱分成低、中、高三个频段
+    2. 并行处理：每个频段用专门的U-Net处理
+    3. 特殊处理：低频用浅层网络（快速），高频用深层网络（精细）
+    4. 融合：拼接三个尺度的输出并通过1×1卷积
+    5. 重建：生成乘性掩膜应用于输入
+
+    【输入输出】
+    输入: [batch, 1, 256, time] - 含啸叫的幅度谱
+    输出: [batch, 1, 256, time] - 抑制啸叫后的幅度谱
+
+    【网络层】
+    unet_low: 3层U-Net，处理低频 [0:64]
+    unet_mid: 5层U-Net，处理中频 [64:192]
+    unet_high: 7层U-Net，处理高频 [192:256]
+    fusion: 融合层，组合多尺度输出
     """
     
     def __init__(self):
-        """Initialize the multi-scale U-Net model."""
+        """初始化多尺度U-Net模型"""
         super(AudioUNet5MultiScale, self).__init__()
 
-        # Initialize three U-Nets of different depths
-        self.unet_low = AudioUNet3()      # For low frequencies (0-64 bins)
-        self.unet_mid = AudioUNet5()      # For mid frequencies (64-192 bins)
-        self.unet_high = AudioUNet7()     # For high frequencies (192-256 bins)
+        # 初始化三个不同深度的U-Net
+        self.unet_low = AudioUNet3()      # 低频处理（0-64 bins）
+        self.unet_mid = AudioUNet5()      # 中频处理（64-192 bins）
+        self.unet_high = AudioUNet7()     # 高频处理（192-256 bins）
 
-        # Fusion layer: combine outputs from all scales
+        # 融合层：组合所有尺度的输出
         self.fusion = nn.Sequential(
             nn.Conv2d(3, 16, kernel_size=1),
             nn.ReLU(inplace=True),
@@ -368,33 +441,32 @@ class AudioUNet5MultiScale(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the multi-scale U-Net model.
-        
+        """多尺度U-Net前向传播
+
         Args:
-            x (torch.Tensor): Input spectrogram [B, 1, 256, T]
-            
+            x: 输入频谱 [B, 1, 256, T]
+
         Returns:
-            torch.Tensor: Output spectrogram [B, 1, 256, T]
+            output: 输出频谱 [B, 1, 256, T]
         """
-        # Split input into three frequency bands
-        # Low: [0:64], Mid: [64:192], High: [192:256]
+        # 分割输入为三个频段
+        # 低频: [0:64], 中频: [64:192], 高频: [192:256]
         x_low = x[:, :, 0:64, :]       # [B, 1, 64, T]
         x_mid = x[:, :, 64:192, :]     # [B, 1, 128, T]
         x_high = x[:, :, 192:256, :]   # [B, 1, 64, T]
 
-        # Process each frequency band with its specialized U-Net
+        # 用专门的U-Net处理每个频段
         out_low = self.unet_low(x_low)     # [B, 1, 64, T]
         out_mid = self.unet_mid(x_mid)     # [B, 1, 128, T]
         out_high = self.unet_high(x_high)  # [B, 1, 64, T]
 
-        # Concatenate outputs along channel dimension
+        # 沿通道维度拼接输出
         out_concat = torch.cat([out_low, out_mid, out_high], dim=1)  # [B, 3, 256, T]
 
-        # Apply fusion layer
+        # 应用融合层
         mask = self.fusion(out_concat)  # [B, 1, 256, T]
 
-        # Apply multiplicative mask
+        # 应用乘性掩膜
         output = x * mask
 
         return output

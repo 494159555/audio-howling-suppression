@@ -51,6 +51,9 @@ class Config:
         'unet_v8_temporal_attention': 'AudioUNet5TemporalAttention',
         'unet_v9_convlstm': 'AudioUNet5ConvLSTM',
         'unet_v10_gan': 'AudioUNet5GAN',
+        'unet_v11_multiscale': 'AudioUNet5MultiScale',
+        'unet_v12_pyramid': 'AudioUNet5Pyramid',
+        'unet_v13_fpn': 'AudioUNet5FPN',
     }
     
     DEFAULT_MODEL = 'unet_v2'
@@ -66,6 +69,9 @@ class Config:
         'unet_v8_temporal_attention': '5层U-Net + 时间注意力',
         'unet_v9_convlstm': '5层U-Net + ConvLSTM',
         'unet_v10_gan': '5层U-Net + GAN框架',
+        'unet_v11_multiscale': '多尺度U-Net (3+5+7层不同尺度)',
+        'unet_v12_pyramid': '金字塔池化U-Net',
+        'unet_v13_fpn': '特征金字塔网络U-Net',
     }
     
     LOSS_FUNCTIONS = {
