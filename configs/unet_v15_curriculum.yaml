@@ -1,46 +1,60 @@
-# UNet V15: 课程学习配置
-# 从简单到复杂逐步训练
+# ========================================
+# U-Net V15 配置文件
+# ========================================
+# 配置名称: 课程学习配置
+# 描述: 从简单到复杂逐步训练
+# 特点: 课程学习策略，逐步增加训练难度
+# 适用场景: 训练数据质量参差不齐或需要稳定训练收敛
+# ========================================
 
+# ========== 模型配置 ==========
 model:
-  name: "AudioUNet5"
-  in_channels: 1
-  out_channels: 1
+  name: unet_v2              # 基础模型
+  class_name: AudioUNet5
+  description: "5层U-Net + 课程学习策略"
 
+# ========== 训练参数 ==========
 training:
-  epochs: 50
-  batch_size: 8
+  # 基础训练参数
   learning_rate: 0.0001
+  batch_size: 8
+  num_epochs: 50
+  num_workers: 2
   weight_decay: 1.0e-5
-  
+
   # 课程学习配置
-  use_curriculum_learning: true
-  curriculum_total_epochs: 50
-  curriculum_schedule_type: "step"  # 'step', 'linear', 'exponential'
-  
-  # 难度级别（从低到高）
-  curriculum_difficulty_levels:
-    - noise_level: 0.01  # 简单：低噪声
-    - noise_level: 0.05  # 中等：中等噪声
-    - noise_level: 0.10  # 困难：高噪声
-    - noise_level: 0.20  # 极难：极高噪声
+  curriculum_learning:
+    enabled: true                    # 启用课程学习
+    total_epochs: 50                 # 总训练轮数
+    schedule_type: "step"            # 调度类型: step, linear, exponential
 
-# 学习率调度
-lr_scheduler:
-  type: "plateau"
-  factor: 0.5
-  patience: 3
+    # 难度级别（从低到高）
+    difficulty_levels:
+      - noise_level: 0.01            # 简单：低噪声
+      - noise_level: 0.05            # 中等：中等噪声
+      - noise_level: 0.10            # 困难：高噪声
+      - noise_level: 0.20            # 极难：极高噪声
 
-# 损失函数
+  # 学习率调度器
+  lr_scheduler:
+    type: "plateau"
+    factor: 0.5
+    patience: 3
+
+# ========== 损失函数配置 ==========
 loss:
   type: "l1"
 
-# 数据增强
+# ========== 数据增强配置 ==========
 augmentation:
-  enabled: false
+  enabled: false             # 课程学习不额外使用增强
 
-# 后处理
+# ========== 后处理配置 ==========
 post_processing:
   enabled: false
 
-# 实验描述
-description: "UNet V5 with curriculum learning (step schedule)"
+# ========== 实验信息 ==========
+experiment:
+  name: "curriculum_unet_v15"
+  description: "课程学习配置（逐步增加难度）"
+  notes: "有助于训练稳定和收敛"

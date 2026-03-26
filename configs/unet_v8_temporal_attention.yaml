@@ -1,17 +1,18 @@
 # ========================================
-# U-Net V3 配置文件
+# U-Net V8 配置文件
 # ========================================
-# 模型名称: AudioUNet5Attention
-# 描述: 5层U-Net + 注意力门机制
-# 特点: 注意力机制关注重要特征区域
-# 适用场景: 需要关注特定频段的啸叫抑制
+# 模型名称: AudioUNet5TemporalAttention
+# 描述: 5层U-Net + 时间注意力机制
+# 特点: 动态关注不同时间帧的重要性
+# 适用场景: 需要关注特定时间段的啸叫抑制
 # ========================================
 
 # ========== 模型配置 ==========
 model:
-  name: unet_v3_attention
-  class_name: AudioUNet5Attention
-  description: "5层U-Net + 注意力门"
+  name: unet_v8_temporal_attention
+  class_name: AudioUNet5TemporalAttention
+  description: "5层U-Net + 时间注意力机制"
+  attention_heads: 8         # 注意力头数
 
 # ========== 训练参数 ==========
 training:
@@ -24,17 +25,17 @@ training:
 
   # 学习率调度器
   lr_scheduler:
-    type: "plateau"
+    type: "plateau"          # ReduceLROnPlateau
     factor: 0.5
     patience: 3
 
 # ========== 损失函数配置 ==========
 loss:
-  type: "spectral"           # 使用频谱损失
+  type: "spectral"           # 频谱损失
 
 # ========== 数据增强配置 ==========
 augmentation:
-  enabled: true              # 注意力模型推荐使用增强
+  enabled: true
   spec_augment:
     freq_masking: true
     time_masking: true
@@ -45,5 +46,5 @@ post_processing:
 
 # ========== 实验信息 ==========
 experiment:
-  name: "attention_unet_v3"
-  description: "带注意力机制的U-Net"
+  name: "temporal_attention_unet_v8"
+  description: "带时间注意力机制的U-Net"

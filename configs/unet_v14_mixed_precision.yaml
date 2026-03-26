@@ -1,38 +1,53 @@
-# UNet V14: 混合精度训练配置
-# 使用PyTorch AMP加速训练
+# ========================================
+# U-Net V14 配置文件
+# ========================================
+# 配置名称: 混合精度训练配置
+# 描述: 使用PyTorch AMP加速训练
+# 特点: 混合精度训练（FP16+FP32），提升训练速度，减少显存占用
+# 适用场景: 所有模型（推荐在GPU上使用）
+# ========================================
 
+# ========== 模型配置 ==========
 model:
-  name: "AudioUNet5"
-  in_channels: 1
-  out_channels: 1
+  name: unet_v2              # 基础模型
+  class_name: AudioUNet5
+  description: "5层U-Net + 混合精度训练"
 
+# ========== 训练参数 ==========
 training:
-  epochs: 50
-  batch_size: 8
+  # 基础训练参数
   learning_rate: 0.0001
+  batch_size: 16             # 混合精度可使用更大batch
+  num_epochs: 50
+  num_workers: 2
   weight_decay: 1.0e-5
-  
+
   # 混合精度训练配置
-  use_mixed_precision: true
-  amp_enabled: true
+  mixed_precision:
+    enabled: true            # 启用AMP混合精度训练
+    amp_enabled: true
+    init_scale: 65536.0      # 初始缩放因子
 
-# 学习率调度
-lr_scheduler:
-  type: "plateau"  # 使用标准的ReduceLROnPlateau
-  factor: 0.5
-  patience: 3
+  # 学习率调度器
+  lr_scheduler:
+    type: "plateau"
+    factor: 0.5
+    patience: 3
 
-# 损失函数
+# ========== 损失函数配置 ==========
 loss:
   type: "l1"
 
-# 数据增强
+# ========== 数据增强配置 ==========
 augmentation:
   enabled: false
 
-# 后处理
+# ========== 后处理配置 ==========
 post_processing:
   enabled: false
 
-# 实验描述
-description: "UNet V5 with mixed precision training (AMP)"
+# ========== 实验信息 ==========
+experiment:
+  name: "mixed_precision_unet_v14"
+  description: "混合精度训练配置"
+  notes: "训练速度提升约1.5-2倍，显存占用减少约40%"

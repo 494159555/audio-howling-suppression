@@ -1,0 +1,64 @@
+# ========================================
+# U-Net V9 配置文件
+# ========================================
+# 模型名称: AudioUNet5ConvLSTM
+# 描述: 5层U-Net + ConvLSTM层
+# 特点: 同时捕捉空间（频率）和时间维度特征
+# 适用场景: 需要时空建模的复杂啸叫场景
+# ========================================
+
+# ========== 模型配置 ==========
+model:
+  name: unet_v9_convlstm
+  class_name: AudioUNet5ConvLSTM
+  description: "5层U-Net + ConvLSTM时空建模"
+  convlstm_hidden_dim: 64    # ConvLSTM隐藏层维度
+  convlstm_kernel_size: 3    # ConvLSTM卷积核大小
+  convlstm_num_layers: 2     # ConvLSTM层数
+
+# ========== 训练参数 ==========
+training:
+  # 基础训练参数
+  learning_rate: 0.0001      # 学习率
+  batch_size: 4              # 批大小（ConvLSTM占用显存较大）
+  num_epochs: 60             # 训练轮数
+  num_workers: 2             # 数据加载线程数
+  weight_decay: 1.0e-5       # 权重衰减
+
+  # 学习率调度器
+  lr_scheduler:
+    type: "cosine_warmup"    # 余弦退火+预热
+    warmup_epochs: 5
+    min_lr: 0.000001
+
+  # 混合精度训练（推荐，节省显存）
+  mixed_precision:
+    enabled: true            # 启用AMP混合精度训练
+
+# ========== 损失函数配置 ==========
+loss:
+  type: "multitask"
+  weights:
+    spectral: 0.6            # 提高频谱损失权重
+    l1: 0.2
+    mse: 0.2
+
+# ========== 数据增强配置 ==========
+augmentation:
+  enabled: true
+  audio_augment:             # 音频级增强
+    enabled: true
+    noise_addition: true     # 添加噪声
+    pitch_shift: true        # 音调变换
+  spec_augment:              # 频谱图增强
+    freq_masking: true
+    time_masking: true
+
+# ========== 后处理配置 ==========
+post_processing:
+  enabled: false
+
+# ========== 实验信息 ==========
+experiment:
+  name: "convlstm_unet_v9"
+  description: "ConvLSTM时空建模U-Net"

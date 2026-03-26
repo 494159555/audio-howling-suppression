@@ -1,86 +1,70 @@
-"""
-Configuration for Multi-scale U-Net (v11)
-Audio Howling Suppression Model
-"""
+# ========================================
+# U-Net V11 配置文件
+# ========================================
+# 模型名称: AudioUNet5MultiScale
+# 描述: 多尺度U-Net
+# 特点: 3个不同深度的U-Net分支提取多尺度特征
+# 适用场景: 需要捕捉多尺度特征的复杂场景
+# ========================================
 
+# ========== 模型配置 ==========
 model:
-  name: AudioUNet5MultiScale
-  version: 11
-  description: Multi-scale U-Net with 3+5+7 layer architecture for specialized frequency processing
+  name: unet_v11_multiscale
+  class_name: AudioUNet5MultiScale
+  description: "多尺度U-Net（3+5+7层架构）"
+  scales: [3, 5, 7]           # 各分支的层数
 
+# ========== 训练参数 ==========
 training:
-  batch_size: 8
-  num_epochs: 100
-  learning_rate: 0.0001
-  weight_decay: 0.0001
-  
-  optimizer: Adam
-  scheduler: CosineAnnealingLR
-  scheduler_params:
-    T_max: 100
-    eta_min: 0.000001
-  
-  loss: MultiTaskLoss
-  loss_params:
-    spectral_weight: 0.5
-    l1_weight: 0.3
-    mse_weight: 0.2
-  
-  # Mixed precision training
-  use_amp: true
+  # 基础训练参数
+  learning_rate: 0.0001      # 学习率
+  batch_size: 6              # 批大小（多分支占用更多显存）
+  num_epochs: 100            # 训练轮数
+  num_workers: 4             # 数据加载线程数
+  weight_decay: 0.0001       # 权重衰减
+
+  # 学习率调度器
+  lr_scheduler:
+    type: "cosine_warmup"    # 余弦退火+预热
+    warmup_epochs: 5
+    min_lr: 0.000001
+    T_max: 100               # 余弦退火周期
+
+  # 混合精度训练
+  mixed_precision:
+    enabled: true            # 多分支模型推荐使用
+
+  # 梯度裁剪
   gradient_clip: 1.0
-  
-  # Early stopping
-  early_stopping:
-    patience: 15
-    min_delta: 0.001
 
-data:
-  sample_rate: 16000
-  chunk_len: 2.0  # seconds
-  n_fft: 512
-  hop_length: 128
-  
-  # Data augmentation
-  use_augmentation: true
-  augmentation:
-    audio_aug: true
-    spec_aug: true
-    mixup: false
-    adversarial: false
-    
-    audio_params:
-      noise_levels: [0.001, 0.01, 0.02, 0.05]
-      volume_factors: [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
-      max_shift_ratio: 0.1
-      prob: 0.5
-    
-    spec_params:
-      freq_mask_param: 20
-      time_mask_param: 20
-      num_freq_masks: 2
-      num_time_masks: 2
-      jitter_std: 0.01
-      prob: 0.5
+# ========== 损失函数配置 ==========
+loss:
+  type: "multitask"
+  weights:
+    spectral: 0.5
+    l1: 0.3
+    mse: 0.2
 
-paths:
-  train_clean: data/train/clean
-  train_howling: data/train/howling
-  dev_clean: data/dev/clean
-  dev_howling: data/dev/howling
-  test_clean: data/test/clean
-  test_howling: data/test/howling
-  
-  checkpoint_dir: experiments/unet_v11_multiscale/checkpoints
-  log_dir: experiments/unet_v11_multiscale/logs
-  result_dir: experiments/unet_v11_multiscale/results
+# ========== 数据增强配置 ==========
+augmentation:
+  enabled: true
+  audio_augment:
+    enabled: true
+    noise_levels: [0.001, 0.01, 0.02, 0.05]
+    volume_factors: [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+    max_shift_ratio: 0.1
+  spec_augment:
+    freq_mask_param: 20
+    time_mask_param: 20
+    num_freq_masks: 2
+    num_time_masks: 2
 
-logging:
-  log_interval: 10
-  save_interval: 5
-  eval_interval: 1
-  tensorboard: true
+# ========== 后处理配置 ==========
+post_processing:
+  enabled: false
 
-device: cuda
-num_workers: 4
-seed: 42
+# ========== 实验信息 ==========
+experiment:
+  name: "multiscale_unet_v11"
+  description: "多尺度U-Net"
+  notes: "参数量较大，建议使用GPU训练"

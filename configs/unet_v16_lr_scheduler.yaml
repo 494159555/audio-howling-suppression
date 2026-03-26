@@ -1,47 +1,61 @@
-# UNet V16: 高级学习率调度配置
-# 使用Cosine Annealing + Warmup和One Cycle Policy
+# ========================================
+# U-Net V16 配置文件
+# ========================================
+# 配置名称: 高级学习率调度配置
+# 描述: 使用Cosine Annealing + Warmup和One Cycle Policy
+# 特点: 提供多种先进的学习率调度策略
+# 适用场景: 需要优化训练收敛效果
+# ========================================
 
+# ========== 模型配置 ==========
 model:
-  name: "AudioUNet5"
-  in_channels: 1
-  out_channels: 1
+  name: unet_v2              # 基础模型
+  class_name: AudioUNet5
+  description: "5层U-Net + 高级学习率调度"
 
+# ========== 训练参数 ==========
 training:
-  epochs: 50
+  # 基础训练参数
+  learning_rate: 0.0001      # 基础学习率
   batch_size: 8
-  learning_rate: 0.0001
+  num_epochs: 50
+  num_workers: 2
   weight_decay: 1.0e-5
 
-# 学习率调度配置
+# ========== 学习率调度配置 ==========
 lr_scheduler:
-  type: "cosine_warmup"  # 可选: 'cosine_warmup', 'one_cycle', 'plateau', 'step'
-  
-  # Cosine Annealing + Warmup 参数
-  warmup_epochs: 5
-  base_lr: 0.0001
-  min_lr: 0.000001
-  
-  # One Cycle 参数（如果type='one_cycle'）
-  max_lr: 0.001
-  pct_start: 0.3
-  div_factor: 25.0
-  final_div_factor: 10000.0
-  
-  # Step 参数（如果type='step'）
-  step_size: 10
-  gamma: 0.1
+  # 调度器类型选择（选择其中一个）
+  type: "cosine_warmup"      # 可选: cosine_warmup, one_cycle, plateau, step
 
-# 损失函数
+  # Cosine Annealing + Warmup 参数（推荐）
+  warmup_epochs: 5           # 预热轮数
+  base_lr: 0.0001            # 基础学习率
+  min_lr: 0.000001           # 最小学习率
+
+  # One Cycle 参数（如果type='one_cycle'）
+  max_lr: 0.001              # 最大学习率
+  pct_start: 0.3             # 上升阶段占比
+  div_factor: 25.0           # 初始学习率 = max_lr/div_factor
+  final_div_factor: 10000.0  # 最终学习率 = max_lr/final_div_factor
+
+  # Step 衰减参数（如果type='step'）
+  step_size: 10              # 每多少轮衰减一次
+  gamma: 0.1                 # 衰减因子
+
+# ========== 损失函数配置 ==========
 loss:
   type: "l1"
 
-# 数据增强
+# ========== 数据增强配置 ==========
 augmentation:
   enabled: false
 
-# 后处理
+# ========== 后处理配置 ==========
 post_processing:
   enabled: false
 
-# 实验描述
-description: "UNet V5 with cosine annealing + warmup scheduler"
+# ========== 实验信息 ==========
+experiment:
+  name: "lr_scheduler_unet_v16"
+  description: "高级学习率调度配置"
+  notes: "推荐使用cosine_warmup获得更好的收敛效果"

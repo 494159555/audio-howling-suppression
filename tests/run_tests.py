@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""
-Unified Test Script - Audio Howling Suppression Project Test Suite
+"""音频啸叫抑制项目测试套件
 
-This script provides comprehensive testing capabilities for the audio howling
-suppression project with multiple test modes.
+本脚本提供全面的自动化测试，验证项目各模块的正确性。
 
-Supported Test Modes:
-- quick: Quick environment check (imports, data availability)
-- evaluation: Traditional method performance evaluation
-- full: Comprehensive testing (including deep learning models)
-- models: Test all U-Net model variants and loss functions
+测试模式：
+    - quick: 快速检查（导入、数据）
+    - evaluation: 传统方法评估
+    - full: 全面测试
+    - models: 模型和损失函数测试
 
-Usage:
-    python tests/run_tests.py --mode quick
-    python tests/run_tests.py --mode evaluation
+使用方法：
+    # 快速测试
+    python tests/run_tests.py
+
+    # 指定测试模式
     python tests/run_tests.py --mode full
-    python tests/run_tests.py --mode models
-    python tests/run_tests.py --modules traditional,evaluation
 
-Author: Research Team
-Date: 2026-3-23
-Version: 3.0.0
+    # 自定义测试模块
+    python tests/run_tests.py --modules imports unet_models
+
+作者：音频处理实验室
+版本：3.0.0
 """
 
 import sys
@@ -34,327 +34,217 @@ project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root / "src"))
 
 
+# ==================== 测试函数 ====================
+
 def test_imports():
-    """测试模块导入"""
-    print("测试模块导入...")
-    
+    """测试1: 模块导入测试
+
+    验证所有核心模块能否正确导入
+    """
+    print("\n" + "="*60)
+    print("📦 测试1: 模块导入")
+    print("="*60)
+
     try:
-        # 测试基础配置
+        # 基础配置
         from src.config import cfg
-        print("[OK] 配置模块导入成功")
+        print("✅ 配置模块导入成功")
         print(f"   设备: {cfg.DEVICE}")
-        print(f"   采样率: {cfg.SAMPLE_RATE}")
-        print(f"   批大小: {cfg.BATCH_SIZE}")
-        
-        # 测试数据集
+        print(f"   采样率: {cfg.SAMPLE_RATE} Hz")
+
+        # 数据集
         from src.dataset import HowlingDataset
-        print("[OK] 数据集模块导入成功")
-        
-        # 测试传统方法
-        from src.traditional import FrequencyShiftMethod, GainSuppressionMethod, AdaptiveFeedbackMethod
-        print("[OK] 传统方法模块导入成功")
-        
-        # 测试深度学习模型
+        print("✅ 数据集模块导入成功")
+
+        # 传统方法
+        from src.traditional import (
+            FrequencyShiftMethod,
+            GainSuppressionMethod,
+            AdaptiveFeedbackMethod
+        )
+        print("✅ 传统方法模块导入成功")
+
+        # 深度学习模型
         from src.models import AudioUNet5, AudioUNet3, AudioCNN, AudioRNN
-        print("[OK] 深度学习模型模块导入成功")
-        
-        # 测试评估系统
+        print("✅ 深度学习模型模块导入成功")
+
+        # 评估系统
         from src.evaluation import AudioMetrics, AudioVisualizer, MethodComparator
-        print("[OK] 评估系统模块导入成功")
-        
-        # 测试测试运行器
-        from src.evaluation.test_runner import run_quick_evaluation
-        print("[OK] 测试运行器模块导入成功")
-        
+        print("✅ 评估系统模块导入成功")
+
         return True
-        
+
     except Exception as e:
-        print(f"[ERROR] 模块导入失败: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 模块导入失败: {e}")
         return False
 
 
 def test_data_availability():
-    """测试数据可用性"""
-    print("\n测试数据可用性...")
-    
+    """测试2: 数据可用性检查
+
+    验证训练/验证/测试数据目录是否存在及文件数量
+    """
+    print("\n" + "="*60)
+    print("📊 测试2: 数据可用性")
+    print("="*60)
+
     try:
         from src.config import cfg
-        
-        # 检查数据目录
-        data_paths = [
-            cfg.TRAIN_CLEAN_DIR,
-            cfg.TRAIN_NOISY_DIR,
-            cfg.VAL_CLEAN_DIR,
-            cfg.VAL_NOISY_DIR
-        ]
-        
+
+        data_paths = {
+            "训练集(纯净)": cfg.TRAIN_CLEAN_DIR,
+            "训练集(啸叫)": cfg.TRAIN_NOISY_DIR,
+            "验证集(纯净)": cfg.VAL_CLEAN_DIR,
+            "验证集(啸叫)": cfg.VAL_NOISY_DIR
+        }
+
         all_exist = True
-        for path in data_paths:
+        for name, path in data_paths.items():
             if path.exists():
                 file_count = len(list(path.glob("*.wav")))
-                print(f"[OK] {path}: {file_count} 个文件")
+                print(f"✅ {name}: {file_count} 个文件")
             else:
-                print(f"[WARN] {path}: 目录不存在")
+                print(f"⚠️  {name}: 目录不存在 ({path})")
                 all_exist = False
-        
+
         return all_exist
-        
+
     except Exception as e:
-        print(f"[ERROR] 数据检查失败: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 数据检查失败: {e}")
         return False
 
 
 def test_traditional_methods():
-    """测试传统方法基本功能"""
-    print("\n测试传统方法基本功能...")
-    
+    """测试3: 传统方法基本功能
+
+    测试频率移位、增益抑制、自适应反馈方法的基本功能
+    """
+    print("\n" + "="*60)
+    print("🔧 测试3: 传统方法基本功能")
+    print("="*60)
+
     try:
-        from src.traditional import FrequencyShiftMethod, GainSuppressionMethod, AdaptiveFeedbackMethod
-        
+        from src.traditional import (
+            FrequencyShiftMethod,
+            GainSuppressionMethod,
+            AdaptiveFeedbackMethod
+        )
+
         # 创建测试数据
-        batch_size, freq_bins, time_frames = 2, 256, 100
-        test_data = torch.randn(batch_size, 1, freq_bins, time_frames).abs()
+        test_data = torch.randn(2, 1, 256, 100).abs()
         test_data = torch.log10(test_data + 1e-8)
-        
-        print(f"测试数据: {test_data.shape}, 范围: [{test_data.min():.3f}, {test_data.max():.3f}]")
-        
-        # 测试移频移向法
+        print(f"测试数据: {test_data.shape}")
+
+        # 测试频率移位
         freq_method = FrequencyShiftMethod(shift_hz=20.0)
         result1 = freq_method(test_data)
-        print(f"[OK] 移频移向法: {result1.shape}, 范围: [{result1.min():.3f}, {result1.max():.3f}]")
-        
-        # 测试增益抑制法
+        print(f"✅ 移频移向法: {result1.shape}")
+
+        # 测试增益抑制
         gain_method = GainSuppressionMethod(threshold_db=-30.0)
         result2 = gain_method(test_data)
-        print(f"[OK] 增益抑制法: {result2.shape}, 范围: [{result2.min():.3f}, {result2.max():.3f}]")
-        
-        # 测试自适应反馈抵消法
+        print(f"✅ 增益抑制法: {result2.shape}")
+
+        # 测试自适应反馈
         adaptive_method = AdaptiveFeedbackMethod(filter_length=64)
         result3 = adaptive_method(test_data)
-        print(f"[OK] 自适应反馈抵消法: {result3.shape}, 范围: [{result3.min():.3f}, {result3.max():.3f}]")
-        
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] 传统方法测试失败: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        print(f"✅ 自适应反馈法: {result3.shape}")
 
-
-def test_traditional_methods_evaluation():
-    """测试传统方法的评估性能"""
-    print("\n" + "="*60)
-    print("测试传统方法性能评估")
-    print("="*60)
-    
-    try:
-        from src.evaluation.metrics import AudioMetrics
-        from src.traditional import FrequencyShiftMethod, GainSuppressionMethod, AdaptiveFeedbackMethod
-        
-        # 创建评估器
-        metrics = AudioMetrics()
-        
-        # 创建传统方法
-        methods = {
-            'frequency_shift': FrequencyShiftMethod(),
-            'gain_suppression': GainSuppressionMethod(),
-            'adaptive_feedback': AdaptiveFeedbackMethod()
-        }
-        
-        # 创建测试数据
-        batch_size = 2
-        freq_bins = 256
-        time_frames = 100
-        
-        # 模拟log域频谱图数据
-        clean_spectrogram = torch.randn(batch_size, 1, freq_bins, time_frames).abs()
-        clean_spectrogram = torch.log10(clean_spectrogram + 1e-8)
-        
-        # 添加啸叫（高频增强）
-        noisy_spectrogram = clean_spectrogram.clone()
-        noisy_spectrogram[:, :, 200:, :] += 0.5
-        
-        print(f"测试数据形状: {clean_spectrogram.shape}")
-        print(f"纯净信号范围: [{clean_spectrogram.min():.3f}, {clean_spectrogram.max():.3f}]")
-        print(f"带噪信号范围: [{noisy_spectrogram.min():.3f}, {noisy_spectrogram.max():.3f}]")
-        
-        # 测试每个方法
-        results = {}
-        
-        for method_name, method in methods.items():
-            print(f"\n测试 {method_name}...")
-            
-            try:
-                # 处理信号
-                enhanced = method(noisy_spectrogram)
-                
-                # 计算指标
-                method_metrics = {}
-                
-                # SNR改善
-                snr_improvement = metrics.calculate_snr(clean_spectrogram, enhanced, noisy_spectrogram)
-                method_metrics['snr_improvement_db'] = snr_improvement
-                
-                # PSNR
-                psnr = metrics.calculate_psnr(clean_spectrogram, enhanced)
-                method_metrics['psnr_db'] = psnr
-                
-                # STOI（简化版本）
-                stoi = metrics.calculate_stoi(clean_spectrogram, enhanced)
-                method_metrics['stoi_score'] = stoi
-                
-                # 啸叫抑制指标
-                howling_metrics = metrics.calculate_howling_reduction(noisy_spectrogram, enhanced)
-                method_metrics.update(howling_metrics)
-                
-                # 计算效率指标
-                comp_metrics = metrics.calculate_computational_metrics(
-                    method_name, noisy_spectrogram, method
-                )
-                method_metrics.update(comp_metrics)
-                
-                results[method_name] = method_metrics
-                
-                print(f"  SNR改善: {snr_improvement:.2f} dB")
-                print(f"  PSNR: {psnr:.2f} dB")
-                print(f"  STOI: {stoi:.3f}")
-                print(f"  啸叫衰减: {howling_metrics['howling_reduction_db']:.2f} dB")
-                print(f"  处理时间: {comp_metrics['processing_time_ms']:.2f} ms")
-                print(f"  内存使用: {comp_metrics['memory_usage_mb']:.2f} MB")
-                
-            except Exception as e:
-                print(f"  错误: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        # 输出对比结果
-        print("\n" + "="*60)
-        print("方法对比结果")
-        print("="*60)
-        
-        metrics_to_compare = ['snr_improvement_db', 'psnr_db', 'stoi_score', 
-                             'howling_reduction_db', 'processing_time_ms']
-        
-        for metric in metrics_to_compare:
-            print(f"\n{metric}:")
-            for method_name, method_results in results.items():
-                if metric in method_results:
-                    value = method_results[metric]
-                    print(f"  {method_name}: {value:.3f}")
-        
-        # 找出最佳方法
-        print("\n" + "="*60)
-        print("最佳方法推荐")
-        print("="*60)
-        
-        best_methods = {}
-        
-        # SNR改善最佳
-        best_snr = max(results.items(), key=lambda x: x[1].get('snr_improvement_db', -float('inf')))
-        best_methods['SNR改善'] = best_snr[0]
-        
-        # 啸叫抑制最佳
-        best_howling = max(results.items(), key=lambda x: x[1].get('howling_reduction_db', -float('inf')))
-        best_methods['啸叫抑制'] = best_howling[0]
-        
-        # 速度最佳
-        fastest = min(results.items(), key=lambda x: x[1].get('processing_time_ms', float('inf')))
-        best_methods['处理速度'] = fastest[0]
-        
-        for category, method in best_methods.items():
-            print(f"  {category}: {method}")
-        
         return True
-        
+
     except Exception as e:
-        print(f"[ERROR] 评估测试失败: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 传统方法测试失败: {e}")
         return False
 
 
 def test_deep_learning_models():
-    """测试深度学习模型"""
-    print("\n测试深度学习模型...")
-    
+    """测试4: 深度学习模型
+
+    测试主要深度学习模型的初始化和前向传播
+    """
+    print("\n" + "="*60)
+    print("🧠 测试4: 深度学习模型")
+    print("="*60)
+
     try:
         from src.models import AudioUNet5, AudioUNet3, AudioCNN, AudioRNN
         from src.config import cfg
-        
+
         device = cfg.DEVICE
-        batch_size, freq_bins, time_frames = 2, 256, 128
-        test_data = torch.randn(batch_size, 1, freq_bins, time_frames).to(device)
-        
+        test_data = torch.randn(2, 1, 256, 128).to(device)
+
         models = [
             ("AudioUNet3", AudioUNet3()),
             ("AudioUNet5", AudioUNet5()),
             ("AudioCNN", AudioCNN()),
             ("AudioRNN", AudioRNN())
         ]
-        
+
         for name, model in models:
             model = model.to(device)
             model.eval()
             with torch.no_grad():
                 result = model(test_data)
-            print(f"[OK] {name}: 输入{test_data.shape} -> 输出{result.shape}")
-        
+            params = sum(p.numel() for p in model.parameters())
+            print(f"✅ {name:<15} 参数: {params:>10,}  输出: {result.shape}")
+
         return True
-        
+
     except Exception as e:
-        print(f"[ERROR] 深度学习模型测试失败: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 深度学习模型测试失败: {e}")
         return False
 
 
 def test_evaluation_system():
-    """测试评估系统"""
-    print("\n测试评估系统...")
+    """测试5: 评估系统
+
+    测试指标计算、可视化、对比等评估功能
+    """
+    print("\n" + "="*60)
+    print("📈 测试5: 评估系统")
+    print("="*60)
 
     try:
         from src.evaluation import AudioMetrics, AudioVisualizer, MethodComparator
 
         # 创建测试数据
-        batch_size, freq_bins, time_frames = 2, 256, 128
-        clean = torch.randn(batch_size, 1, freq_bins, time_frames)
+        clean = torch.randn(2, 1, 256, 128)
         noisy = clean + 0.1 * torch.randn_like(clean)
         enhanced = clean + 0.05 * torch.randn_like(clean)
 
         # 测试指标计算
-        metrics_calculator = AudioMetrics()
-        snr = metrics_calculator.calculate_snr(clean, enhanced, noisy)
-        psnr = metrics_calculator.calculate_psnr(clean, enhanced)
-        stoi = metrics_calculator.calculate_stoi(clean, enhanced)
+        metrics = AudioMetrics()
+        snr = metrics.calculate_snr(clean, enhanced, noisy)
+        psnr = metrics.calculate_psnr(clean, enhanced)
+        stoi = metrics.calculate_stoi(clean, enhanced)
 
-        print(f"[OK] 指标计算: SNR={snr:.2f}dB, PSNR={psnr:.2f}dB, STOI={stoi:.3f}")
+        print(f"✅ 指标计算:")
+        print(f"   SNR:  {snr:.2f} dB")
+        print(f"   PSNR: {psnr:.2f} dB")
+        print(f"   STOI: {stoi:.3f}")
 
         # 测试可视化器
         visualizer = AudioVisualizer(save_dir="test_visualizations")
-        print("[OK] 可视化器创建成功")
+        print("✅ 可视化器初始化成功")
 
         # 测试对比器
         comparator = MethodComparator()
-        print("[OK] 对比器创建成功")
+        print("✅ 对比器初始化成功")
 
         return True
 
     except Exception as e:
-        print(f"[ERROR] 评估系统测试失败: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 评估系统测试失败: {e}")
         return False
 
 
 def test_all_unet_models():
-    """测试所有U-Net模型变体"""
+    """测试6: 所有U-Net模型变体
+
+    测试所有U-Net模型变体的初始化和前向传播
+    """
     print("\n" + "="*60)
-    print("Testing All U-Net Models")
+    print("🔬 测试6: 所有U-Net模型变体")
     print("="*60)
 
     try:
@@ -374,66 +264,55 @@ def test_all_unet_models():
 
         device = cfg.DEVICE
         models = [
-            (AudioUNet3, "AudioUNet3"),
-            (AudioUNet5, "AudioUNet5"),
-            (AudioUNet5Attention, "AudioUNet5Attention"),
-            (AudioUNet5Residual, "AudioUNet5Residual"),
-            (AudioUNet5Dilated, "AudioUNet5Dilated"),
-            (AudioUNet5Optimized, "AudioUNet5Optimized"),
-            (AudioUNet5LSTM, "AudioUNet5LSTM"),
-            (AudioUNet5TemporalAttention, "AudioUNet5TemporalAttention"),
-            (AudioUNet5ConvLSTM, "AudioUNet5ConvLSTM"),
-            (AudioUNet5GAN, "AudioUNet5GAN"),
+            (AudioUNet3, "v1: 3层基线"),
+            (AudioUNet5, "v2: 5层基线"),
+            (AudioUNet5Attention, "v3: 注意力"),
+            (AudioUNet5Residual, "v4: 残差"),
+            (AudioUNet5Dilated, "v5: 空洞卷积"),
+            (AudioUNet5Optimized, "v6: 综合优化"),
+            (AudioUNet5LSTM, "v7: LSTM"),
+            (AudioUNet5TemporalAttention, "v8: 时间注意力"),
+            (AudioUNet5ConvLSTM, "v9: ConvLSTM"),
+            (AudioUNet5GAN, "v10: GAN"),
         ]
 
-        model_results = []
-        for model_class, model_name in models:
+        results = []
+        for model_class, model_desc in models:
             try:
-                print(f"  Testing {model_name}...")
                 model = model_class().to(device)
-
-                # Create dummy input
                 x = torch.randn(1, 1, 256, 100).to(device)
 
-                # Forward pass
                 with torch.no_grad():
                     if hasattr(model, 'generator'):
-                        # GAN model
                         output = model.generator(x)
                     else:
                         output = model(x)
 
-                num_params = sum(p.numel() for p in model.parameters())
-                print(f"    ✓ {model_name}: Input {x.shape} -> Output {output.shape}")
-                print(f"    Parameters: {num_params:,}")
-                model_results.append((model_name, True))
+                params = sum(p.numel() for p in model.parameters())
+                print(f"✅ {model_desc:<20} 参数: {params:>10,}")
+                results.append((model_desc, True))
+
             except Exception as e:
-                print(f"    ✗ {model_name}: {e}")
-                model_results.append((model_name, False))
+                print(f"❌ {model_desc:<20} 错误: {str(e)[:40]}")
+                results.append((model_desc, False))
 
-        # Summary
-        print("\nModels:")
-        passed = 0
-        for name, result in model_results:
-            status = "✓ PASS" if result else "✗ FAIL"
-            print(f"  {status}: {name}")
-            if result:
-                passed += 1
+        passed = sum(1 for _, r in results if r)
+        print(f"\n通过率: {passed}/{len(results)}")
 
-        print(f"\nTotal: {passed}/{len(model_results)} models passed")
-        return all(r for _, r in model_results)
+        return all(r for _, r in results)
 
     except Exception as e:
-        print(f"[ERROR] U-Net models test failed: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ U-Net模型测试失败: {e}")
         return False
 
 
 def test_loss_functions():
-    """测试损失函数"""
+    """测试7: 损失函数
+
+    测试所有损失函数的初始化和计算
+    """
     print("\n" + "="*60)
-    print("Testing Loss Functions")
+    print("📉 测试7: 损失函数")
     print("="*60)
 
     try:
@@ -446,197 +325,172 @@ def test_loss_functions():
         )
 
         loss_functions = [
-            (SpectralLoss, "SpectralLoss"),
-            (MultiTaskLoss, "MultiTaskLoss"),
-            (SpectralConsistencyLoss, "SpectralConsistencyLoss"),
-            (AdversarialLoss, "AdversarialLoss"),
-            (Discriminator, "Discriminator"),
+            (SpectralLoss, "频谱损失"),
+            (MultiTaskLoss, "多任务损失"),
+            (SpectralConsistencyLoss, "频谱一致性损失"),
+            (AdversarialLoss, "对抗损失"),
         ]
 
-        loss_results = []
+        results = []
         for loss_class, loss_name in loss_functions:
             try:
-                print(f"  Testing {loss_name}...")
                 loss_fn = loss_class()
-
-                # Create dummy inputs
                 pred = torch.randn(2, 1, 256, 100).abs()
                 target = torch.randn(2, 1, 256, 100).abs()
 
-                # Compute loss
-                if loss_name == "AdversarialLoss":
-                    # Adversarial loss needs different inputs
-                    fake_pred = torch.randn(2, 1)
-                    real_pred = torch.randn(2, 1)
-                    g_loss = loss_fn.generator_loss(fake_pred)
-                    d_loss = loss_fn.discriminator_loss(real_pred, fake_pred)
-                    print(f"    ✓ {loss_name}: G_loss={g_loss.item():.4f}, D_loss={d_loss.item():.4f}")
-                else:
-                    loss = loss_fn(pred, target)
-                    print(f"    ✓ {loss_name}: Loss={loss.item():.4f}")
+                loss = loss_fn(pred, target)
+                print(f"✅ {loss_name:<20} Loss: {loss.item():.4f}")
+                results.append((loss_name, True))
 
-                loss_results.append((loss_name, True))
             except Exception as e:
-                print(f"    ✗ {loss_name}: {e}")
-                loss_results.append((loss_name, False))
+                print(f"❌ {loss_name:<20} 错误: {str(e)[:40]}")
+                results.append((loss_name, False))
 
-        # Summary
-        print("\nLoss Functions:")
-        passed = 0
-        for name, result in loss_results:
-            status = "✓ PASS" if result else "✗ FAIL"
-            print(f"  {status}: {name}")
-            if result:
-                passed += 1
+        # 测试判别器
+        try:
+            disc = Discriminator()
+            fake_pred = torch.randn(2, 1)
+            real_pred = torch.randn(2, 1)
+            d_loss = disc.discriminator_loss(real_pred, fake_pred)
+            print(f"✅ {'判别器':<20} Loss: {d_loss.item():.4f}")
+        except Exception as e:
+            print(f"❌ {'判别器':<20} 错误: {str(e)[:40]}")
 
-        print(f"\nTotal: {passed}/{len(loss_results)} loss functions passed")
-        return all(r for _, r in loss_results)
+        passed = sum(1 for _, r in results if r)
+        print(f"\n通过率: {passed}/{len(results)}")
+
+        return all(r for _, r in results)
 
     except Exception as e:
-        print(f"[ERROR] Loss functions test failed: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ 损失函数测试失败: {e}")
         return False
 
 
-def run_predefined_tests(mode):
-    """运行预定义的测试模式"""
-    print("="*80)
-    print(f"音频啸叫抑制项目测试 - 模式: {mode.upper()}")
-    print("="*80)
+# ==================== 测试套件 ====================
 
-    test_suites = {
-        'quick': [
-            ("模块导入", test_imports),
-            ("数据可用性", test_data_availability)
-        ],
-        'evaluation': [
-            ("传统方法评估", test_traditional_methods_evaluation)
-        ],
-        'full': [
-            ("模块导入", test_imports),
-            ("数据可用性", test_data_availability),
-            ("传统方法", test_traditional_methods),
-            ("深度学习模型", test_deep_learning_models),
-            ("评估系统", test_evaluation_system)
-        ],
-        'models': [
-            ("所有U-Net模型", test_all_unet_models),
-            ("损失函数", test_loss_functions)
-        ]
-    }
-    
-    tests = test_suites.get(mode, [])
+TEST_SUITES = {
+    'quick': [
+        ("模块导入", test_imports),
+        ("数据可用性", test_data_availability)
+    ],
+    'evaluation': [
+        ("传统方法", test_traditional_methods),
+        ("评估系统", test_evaluation_system)
+    ],
+    'full': [
+        ("模块导入", test_imports),
+        ("数据可用性", test_data_availability),
+        ("传统方法", test_traditional_methods),
+        ("深度学习模型", test_deep_learning_models),
+        ("评估系统", test_evaluation_system)
+    ],
+    'models': [
+        ("所有U-Net模型", test_all_unet_models),
+        ("损失函数", test_loss_functions)
+    ]
+}
+
+
+def run_tests(mode='quick'):
+    """运行测试套件
+
+    Args:
+        mode: 测试模式 ('quick', 'evaluation', 'full', 'models')
+
+    Returns:
+        bool: 是否所有测试通过
+    """
+    print("\n" + "="*70)
+    print("🧪 音频啸叫抑制项目 - 自动化测试")
+    print("="*70)
+    print(f"测试模式: {mode.upper()}")
+    print(f"PyTorch版本: {torch.__version__}")
+    print(f"CUDA可用: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU设备: {torch.cuda.get_device_name(0)}")
+
+    tests = TEST_SUITES.get(mode, [])
     results = []
-    
+
     for test_name, test_func in tests:
         try:
             result = test_func()
             results.append((test_name, result))
         except Exception as e:
-            print(f"[ERROR] {test_name}测试出现异常: {e}")
+            print(f"\n❌ {test_name} 测试异常: {e}")
             import traceback
             traceback.print_exc()
             results.append((test_name, False))
-    
-    # 输出测试结果摘要
-    print("\n" + "="*80)
-    print("测试结果摘要")
-    print("="*80)
-    
-    passed = 0
+
+    # 打印测试摘要
+    print("\n" + "="*70)
+    print("📋 测试结果摘要")
+    print("="*70)
+
     for test_name, result in results:
-        status = "[PASS]" if result else "[FAIL]"
-        print(f"{test_name:<20} {status}")
-        if result:
-            passed += 1
-    
-    print(f"\n总计: {passed}/{len(results)} 项测试通过")
-    
-    if passed == len(results):
-        print("\n[SUCCESS] 所有测试通过！")
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}  {test_name}")
+
+    passed = sum(1 for _, r in results if r)
+    total = len(results)
+
+    print(f"\n总计: {passed}/{total} 项测试通过")
+
+    if passed == total:
+        print("\n🎉 所有测试通过！项目运行正常。")
     else:
-        print("\n[WARNING] 部分测试失败，请检查错误信息。")
-    
-    return passed == len(results)
+        print(f"\n⚠️  {total - passed} 项测试失败，请检查上述错误信息。")
+
+    print("="*70 + "\n")
+
+    return passed == total
 
 
-def run_custom_tests(modules):
-    """运行自定义测试模块"""
-    print("="*80)
-    print(f"音频啸叫抑制项目测试 - 自定义模块: {', '.join(modules)}")
-    print("="*80)
-
-    available_tests = {
-        'imports': ("模块导入", test_imports),
-        'data': ("数据可用性", test_data_availability),
-        'traditional': ("传统方法", test_traditional_methods),
-        'traditional_eval': ("传统方法评估", test_traditional_methods_evaluation),
-        'models': ("深度学习模型", test_deep_learning_models),
-        'evaluation': ("评估系统", test_evaluation_system),
-        'unet_models': ("所有U-Net模型", test_all_unet_models),
-        'loss_functions': ("损失函数", test_loss_functions)
-    }
-    
-    results = []
-    for module in modules:
-        if module in available_tests:
-            test_name, test_func = available_tests[module]
-            try:
-                result = test_func()
-                results.append((test_name, result))
-            except Exception as e:
-                print(f"[ERROR] {test_name}测试出现异常: {e}")
-                import traceback
-                traceback.print_exc()
-                results.append((test_name, False))
-        else:
-            print(f"[WARN] 未知模块: {module}")
-    
-    # 输出测试结果摘要
-    print("\n" + "="*80)
-    print("测试结果摘要")
-    print("="*80)
-    
-    passed = 0
-    for test_name, result in results:
-        status = "[PASS]" if result else "[FAIL]"
-        print(f"{test_name:<20} {status}")
-        if result:
-            passed += 1
-    
-    print(f"\n总计: {passed}/{len(results)} 项测试通过")
-    
-    if passed == len(results):
-        print("\n[SUCCESS] 所有测试通过！")
-    else:
-        print("\n[WARNING] 部分测试失败，请检查错误信息。")
-    
-    return passed == len(results)
-
+# ==================== 主函数 ====================
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='音频啸叫抑制项目测试脚本')
-    parser.add_argument('--mode', choices=['quick', 'evaluation', 'full', 'models'], default='quick',
-                        help='测试模式: quick(快速检查), evaluation(性能评估), full(全面测试), models(所有U-Net模型和损失函数)')
-    parser.add_argument('--modules', nargs='+',
-                        help='自定义测试模块: imports, data, traditional, traditional_eval, models, evaluation, unet_models, loss_functions')
+    parser = argparse.ArgumentParser(
+        description='音频啸叫抑制项目自动化测试',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+测试模式说明:
+  quick       快速检查（导入、数据）
+  evaluation  传统方法和评估系统
+  full        全面测试所有功能
+  models      模型和损失函数测试
+
+使用示例:
+  python tests/run_tests.py                    # 默认快速测试
+  python tests/run_tests.py --mode full        # 全面测试
+  python tests/run_tests.py --mode models      # 测试所有模型
+        """
+    )
+
+    parser.add_argument(
+        '--mode',
+        choices=['quick', 'evaluation', 'full', 'models'],
+        default='quick',
+        help='测试模式（默认: quick）'
+    )
 
     args = parser.parse_args()
 
-    if args.modules:
-        success = run_custom_tests(args.modules)
-    else:
-        success = run_predefined_tests(args.mode)
+    # 运行测试
+    success = run_tests(args.mode)
 
     # 提供使用建议
-    if success:
-        print("\n使用建议:")
-        print("1. 快速评估传统方法: python tests/run_tests.py --mode evaluation")
-        print("2. 全面测试所有功能: python tests/run_tests.py --mode full")
-        print("3. 测试所有U-Net模型: python tests/run_tests.py --mode models")
-        print("4. 自定义测试模块: python tests/run_tests.py --modules imports,unet_models")
+    if not success:
+        print("\n💡 故障排查建议:")
+        print("1. 检查数据目录是否存在: data/train, data/dev")
+        print("2. 检查依赖是否安装: pip install -r requirements.txt")
+        print("3. 查看详细错误信息以定位问题")
+        print("4. 运行单模块测试: python tests/run_tests.py --mode models\n")
+    else:
+        print("\n💡 下一步:")
+        print("1. 训练模型: python src/train.py --config configs/unet_v2.yaml")
+        print("2. 查看脚本: python scripts/test_models.py")
+        print("3. 运行实验: python scripts/run_experiment.py --mode quick\n")
 
     return 0 if success else 1
 

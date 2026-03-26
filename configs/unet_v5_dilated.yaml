@@ -1,14 +1,47 @@
+# ========================================
 # U-Net V5 配置文件
-# 空洞卷积版本 U-Net
+# ========================================
+# 模型名称: AudioUNet5Dilated
+# 描述: 5层U-Net + 空洞卷积
+# 特点: 扩大感受野，不增加参数量
+# 适用场景: 需要捕捉大范围上下文的场景
+# ========================================
 
-# 模型配置
-model: unet_v5_dilated
+# ========== 模型配置 ==========
+model:
+  name: unet_v5_dilated
+  class_name: AudioUNet5Dilated
+  description: "5层U-Net + 空洞卷积"
+  dilation_rates: [1, 2, 4, 8, 16]  # 各层膨胀率
 
-# 训练配置
-learning_rate: 1e-4
-batch_size: 8
-num_epochs: 50
-num_workers: 2
+# ========== 训练参数 ==========
+training:
+  # 基础训练参数
+  learning_rate: 0.0001      # 学习率
+  batch_size: 8              # 批大小
+  num_epochs: 50             # 训练轮数
+  num_workers: 2             # 数据加载线程数
+  weight_decay: 1.0e-5       # 权重衰减
 
-# 实验配置
-experiment_name: dilated_unet
+  # 学习率调度器
+  lr_scheduler:
+    type: "plateau"
+    factor: 0.5
+    patience: 3
+
+# ========== 损失函数配置 ==========
+loss:
+  type: "spectral"
+
+# ========== 数据增强配置 ==========
+augmentation:
+  enabled: false
+
+# ========== 后处理配置 ==========
+post_processing:
+  enabled: false
+
+# ========== 实验信息 ==========
+experiment:
+  name: "dilated_unet_v5"
+  description: "带空洞卷积的U-Net"

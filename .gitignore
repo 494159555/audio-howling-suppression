@@ -40,6 +40,7 @@ ENV/
 *.swp
 *.swo
 *~
+.claude
 
 # Data files (大型数据集)
 data/train/clean/

@@ -1,0 +1,56 @@
+# ========================================
+# U-Net V7 配置文件
+# ========================================
+# 模型名称: AudioUNet5LSTM
+# 描述: 5层U-Net + 双向LSTM时序建模
+# 特点: 结合CNN的空间特征提取和LSTM的时序建模能力
+# 适用场景: 时变啸叫抑制
+# ========================================
+
+# ========== 模型配置 ==========
+model:
+  name: unet_v7_lstm
+  class_name: AudioUNet5LSTM
+  description: "5层U-Net + 双向LSTM时序建模"
+  lstm_hidden_dim: 256       # LSTM隐藏层维度
+  lstm_num_layers: 2         # LSTM层数
+  lstm_bidirectional: true   # 是否使用双向LSTM
+
+# ========== 训练参数 ==========
+training:
+  # 基础训练参数
+  learning_rate: 0.0001      # 学习率
+  batch_size: 6              # 批大小（LSTM占用更多显存）
+  num_epochs: 60             # 训练轮数（时序模型需要更多轮数）
+  num_workers: 2             # 数据加载线程数
+  weight_decay: 1.0e-5       # 权重衰减
+
+  # 学习率调度器
+  lr_scheduler:
+    type: "cosine_warmup"    # 使用余弦退火+预热
+    warmup_epochs: 5         # 预热轮数
+    min_lr: 0.000001         # 最小学习率
+
+# ========== 损失函数配置 ==========
+loss:
+  type: "multitask"          # 多任务损失
+  weights:
+    spectral: 0.5            # 频谱损失权重
+    l1: 0.3                  # L1损失权重
+    mse: 0.2                 # MSE损失权重
+
+# ========== 数据增强配置 ==========
+augmentation:
+  enabled: true              # 启用数据增强
+  spec_augment:              # 频谱图增强
+    freq_masking: true       # 频率掩蔽
+    time_masking: true       # 时间掩蔽
+
+# ========== 后处理配置 ==========
+post_processing:
+  enabled: false             # 不启用后处理
+
+# ========== 实验信息 ==========
+experiment:
+  name: "lstm_unet_v7"
+  description: "带双向LSTM的时序建模U-Net"
