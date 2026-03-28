@@ -9,7 +9,8 @@
       "Bash(ls -la *.py *.md *.txt *.json)",
       "Bash(ls:*)",
       "Bash(grep -E \"\\\\.py$\")",
-      "Bash(pip list:*)"
+      "Bash(pip list:*)",
+      "Bash(du -sh *)"
     ]
   }
 }

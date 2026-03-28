@@ -150,31 +150,31 @@ class AudioUNet5GAN(nn.Module):
                 self.enc1 = nn.Sequential(
                     nn.Conv2d(1, 16, kernel_size=3, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(16),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
                 )
 
                 self.enc2 = nn.Sequential(
                     nn.Conv2d(16, 32, kernel_size=3, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(32),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
                 )
 
                 self.enc3 = nn.Sequential(
                     nn.Conv2d(32, 64, kernel_size=3, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(64),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
                 )
 
                 self.enc4 = nn.Sequential(
                     nn.Conv2d(64, 128, kernel_size=3, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(128),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
                 )
 
                 self.enc5 = nn.Sequential(
                     nn.Conv2d(128, 256, kernel_size=3, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(256),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
                 )
 
                 # 解码器（上采样）- 5层
@@ -183,7 +183,7 @@ class AudioUNet5GAN(nn.Module):
                         256, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
                     ),
                     nn.BatchNorm2d(128),
-                    nn.ReLU(inplace=True),
+                    nn.ReLU(inplace=False),
                 )
 
                 self.dec4 = nn.Sequential(
@@ -191,7 +191,7 @@ class AudioUNet5GAN(nn.Module):
                         256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
                     ),
                     nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
+                    nn.ReLU(inplace=False),
                 )
 
                 self.dec3 = nn.Sequential(
@@ -199,7 +199,7 @@ class AudioUNet5GAN(nn.Module):
                         128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
                     ),
                     nn.BatchNorm2d(32),
-                    nn.ReLU(inplace=True),
+                    nn.ReLU(inplace=False),
                 )
 
                 self.dec2 = nn.Sequential(
@@ -207,7 +207,7 @@ class AudioUNet5GAN(nn.Module):
                         64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
                     ),
                     nn.BatchNorm2d(16),
-                    nn.ReLU(inplace=True),
+                    nn.ReLU(inplace=False),
                 )
 
                 self.dec1 = nn.Sequential(
@@ -259,17 +259,17 @@ class AudioUNet5GAN(nn.Module):
                     # 第1层
                     nn.Conv2d(1, 64, kernel_size=4, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(64),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
 
                     # 第2层
                     nn.Conv2d(64, 128, kernel_size=4, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(128),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
 
                     # 第3层
                     nn.Conv2d(128, 256, kernel_size=4, stride=(2, 1), padding=1),
                     nn.BatchNorm2d(256),
-                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=False),
                 )
 
                 # 最终分类层

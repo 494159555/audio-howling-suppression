@@ -103,7 +103,7 @@ class AudioUNet3(nn.Module):
         # Decoder
         self.dec3 = nn.Sequential(
             nn.ConvTranspose2d(
-                64, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                64, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
@@ -111,7 +111,7 @@ class AudioUNet3(nn.Module):
 
         self.dec2 = nn.Sequential(
             nn.ConvTranspose2d(
-                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True),
@@ -119,7 +119,7 @@ class AudioUNet3(nn.Module):
 
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(
-                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.Sigmoid(),
         )
@@ -214,7 +214,7 @@ class AudioUNet7(nn.Module):
         # Decoder
         self.dec7 = nn.Sequential(
             nn.ConvTranspose2d(
-                1024, 512, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                1024, 512, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
@@ -222,7 +222,7 @@ class AudioUNet7(nn.Module):
 
         self.dec6 = nn.Sequential(
             nn.ConvTranspose2d(
-                1024, 256, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                1024, 256, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
@@ -230,7 +230,7 @@ class AudioUNet7(nn.Module):
 
         self.dec5 = nn.Sequential(
             nn.ConvTranspose2d(
-                512, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                512, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
@@ -238,7 +238,7 @@ class AudioUNet7(nn.Module):
 
         self.dec4 = nn.Sequential(
             nn.ConvTranspose2d(
-                256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
@@ -246,7 +246,7 @@ class AudioUNet7(nn.Module):
 
         self.dec3 = nn.Sequential(
             nn.ConvTranspose2d(
-                128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
@@ -254,7 +254,7 @@ class AudioUNet7(nn.Module):
 
         self.dec2 = nn.Sequential(
             nn.ConvTranspose2d(
-                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True),
@@ -262,7 +262,7 @@ class AudioUNet7(nn.Module):
 
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(
-                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.Sigmoid(),
         )
@@ -379,7 +379,7 @@ class AudioUNet5(nn.Module):
         # Decoder
         self.dec5 = nn.Sequential(
             nn.ConvTranspose2d(
-                256, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                256, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
@@ -387,7 +387,7 @@ class AudioUNet5(nn.Module):
 
         self.dec4 = nn.Sequential(
             nn.ConvTranspose2d(
-                256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
@@ -395,7 +395,7 @@ class AudioUNet5(nn.Module):
 
         self.dec3 = nn.Sequential(
             nn.ConvTranspose2d(
-                128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
@@ -403,7 +403,7 @@ class AudioUNet5(nn.Module):
 
         self.dec2 = nn.Sequential(
             nn.ConvTranspose2d(
-                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True),
@@ -411,7 +411,7 @@ class AudioUNet5(nn.Module):
 
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(
-                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(0, 0)
+                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
             ),
             nn.Sigmoid(),
         )
@@ -535,13 +535,20 @@ class AudioUNet5MultiScale(nn.Module):
         out_mid = self.unet_mid(x_mid)     # [B, 1, 128, T]
         out_high = self.unet_high(x_high)  # [B, 1, 64, T]
 
-        # 沿通道维度拼接输出
-        out_concat = torch.cat([out_low, out_mid, out_high], dim=1)  # [B, 3, 256, T]
+        # 确保每个频段输出尺寸正确
+        # 由于下采样/上采样可能导致尺寸不匹配，需要调整
+        target_low_size = x_low.shape[2:]  # [64, T]
+        target_mid_size = x_mid.shape[2:]  # [128, T]
+        target_high_size = x_high.shape[2:]  # [64, T]
 
-        # 应用融合层
-        mask = self.fusion(out_concat)  # [B, 1, 256, T]
+        if out_low.shape[2:] != target_low_size:
+            out_low = nn.functional.interpolate(out_low, size=target_low_size, mode='bilinear', align_corners=False)
+        if out_mid.shape[2:] != target_mid_size:
+            out_mid = nn.functional.interpolate(out_mid, size=target_mid_size, mode='bilinear', align_corners=False)
+        if out_high.shape[2:] != target_high_size:
+            out_high = nn.functional.interpolate(out_high, size=target_high_size, mode='bilinear', align_corners=False)
 
-        # 应用乘性掩膜
-        output = x * mask
+        # 沿频率维度(dim=2)拼接输出，重组完整频谱
+        output = torch.cat([out_low, out_mid, out_high], dim=2)  # [B, 1, 256, T]
 
         return output

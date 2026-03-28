@@ -457,55 +457,69 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device,
                 pred_mag = model(noisy_mag)
 
                 if discriminator is not None:
-                    # GAN训练
+                    # GAN训练 - 分离两个步骤
                     valid = torch.ones(noisy_mag.size(0), 1).to(device)
                     fake = torch.zeros(noisy_mag.size(0), 1).to(device)
 
-                    # 判别器损失
-                    real_loss = nn.BCELoss()(discriminator(clean_mag), valid)
+                    # 步骤1: 训练判别器
+                    real_loss = nn.BCELoss()(discriminator(clean_mag.detach()), valid)
                     fake_loss = nn.BCELoss()(discriminator(pred_mag.detach()), fake)
                     disc_loss = (real_loss + fake_loss) / 2
 
-                    # 生成器损失
-                    gen_loss = criterion(pred_mag, clean_mag)
-                    adv_loss = nn.BCELoss()(discriminator(pred_mag), valid)
-                    loss = gen_loss + gan_lambda * adv_loss
+                    scaler.scale(disc_loss).backward()
+                    if disc_optimizer is not None:
+                        scaler.step(disc_optimizer)
+                        disc_optimizer.zero_grad()
+
+                    # 步骤2: 训练生成器（判别器参数已固定）
+                    scaler.update()
+                    scaler.unscale_(optimizer)
+                    optimizer.zero_grad()
+
+                    with autocast():
+                        gen_loss = criterion(pred_mag, clean_mag)
+                        adv_loss = nn.BCELoss()(discriminator(pred_mag), valid)
+                        loss = gen_loss + gan_lambda * adv_loss
+
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
                 else:
                     loss = criterion(pred_mag, clean_mag)
-
-            scaler.scale(loss).backward()
-            if discriminator is not None:
-                scaler.scale(disc_loss).backward()
-
-            scaler.step(optimizer)
-            if disc_optimizer is not None:
-                scaler.step(disc_optimizer)
-
-            scaler.update()
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
         else:
             pred_mag = model(noisy_mag)
 
             if discriminator is not None:
+                # GAN训练 - 分离两个步骤
                 valid = torch.ones(noisy_mag.size(0), 1).to(device)
                 fake = torch.zeros(noisy_mag.size(0), 1).to(device)
 
-                real_loss = nn.BCELoss()(discriminator(clean_mag), valid)
+                # 步骤1: 训练判别器
+                real_loss = nn.BCELoss()(discriminator(clean_mag.detach()), valid)
                 fake_loss = nn.BCELoss()(discriminator(pred_mag.detach()), fake)
                 disc_loss = (real_loss + fake_loss) / 2
+
+                disc_loss.backward()
+                if disc_optimizer is not None:
+                    disc_optimizer.step()
+                    disc_optimizer.zero_grad()
+
+                # 步骤2: 训练生成器（判别器参数已固定）
+                optimizer.zero_grad()
 
                 gen_loss = criterion(pred_mag, clean_mag)
                 adv_loss = nn.BCELoss()(discriminator(pred_mag), valid)
                 loss = gen_loss + gan_lambda * adv_loss
 
-                disc_loss.backward(retain_graph=True)
-                if disc_optimizer is not None:
-                    disc_optimizer.step()
-                    disc_optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
             else:
                 loss = criterion(pred_mag, clean_mag)
-
-            loss.backward()
-            optimizer.step()
+                loss.backward()
+                optimizer.step()
 
         total_loss += loss.item()
 
