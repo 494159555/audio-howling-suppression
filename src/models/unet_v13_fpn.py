@@ -12,7 +12,7 @@ U-Net v13 模型 - 5层U-Net + 特征金字塔网络(FPN)
   - 自底向上路径（编码器）：提取多尺度特征
   - 横向连接（1×1卷积）：统一通道数
   - 自顶向下路径（上采样）：传播高层语义信息
-  - 解码器：使用FPN特征重建
+  - 解码器：使用FPN特征重建（相加融合）
 
 【网络架构】
 编码器（自底向上路径）：
@@ -36,21 +36,26 @@ U-Net v13 模型 - 5层U-Net + 特征金字塔网络(FPN)
   P2: 上采样(P3) + L2
   P1: 上采样(P2) + L1（最底层）
 
-解码器（使用FPN特征）：
-  使用P5、P4、P3、P2、P1进行重建
+解码器（使用FPN特征，相加融合）：
+  dec5: P5 → 与P4相加
+  dec4: 结果 → 与P3相加
+  dec3: 结果 → 与P2相加
+  dec2: 结果 → 与P1相加
+  dec1: 结果 → 最终掩膜
 
 【关键参数说明】
 - fpn_channels: FPN特征图的通道数（默认: 64）
 - use_fpn_fusion: 是否使用FPN融合（默认: True）
 - 平滑层：3×3卷积平滑FPN输出
 - 横向连接：1×1卷积统一通道数
+- 融合方式：特征相加（element-wise addition）而非拼接
 
 【数据处理流程】
 1. 输入：线性幅度谱 [B, 1, 256, T]
 2. 编码器：自底向上提取特征（C1-C5）
 3. 横向连接：1×1卷积降维（L1-L5）
 4. FPN：自顶向下路径融合（P1-P5）
-5. 解码器：使用融合后的特征重建
+5. 解码器：逐步上采样并相加FPN特征
 6. 输出：[0,1]掩膜
 7. 最终结果：输入 × 掩膜
 
@@ -59,12 +64,18 @@ U-Net v13 模型 - 5层U-Net + 特征金字塔网络(FPN)
 ✓ 高层语义信息传播到所有尺度
 ✓ 改进的特征表示
 ✓ 更好地检测不同尺度的啸叫
-✓ 灵活的架构选择
+✓ 标准FPN解码方式（相加而非拼接）
 
 【与其他版本区别】
-- v2：标准5层U-Net，简单跳跃连接
+- v2：标准5层U-Net，简单跳跃连接（拼接）
+- v11：多尺度U-Net，处理不同频段
 - v12：使用金字塔池化模块（PPM）
-- v13（本模型）：使用特征金字塔网络（FPN）
+- v13（本模型）：使用特征金字塔网络（FPN），相加融合
+
+【修复说明】
+- 修复了解码器通道数不匹配的问题
+- 使用标准FPN解码方式：逐步上采样并相加，而非拼接
+- 所有FPN特征图通道数统一为fpn_channels（64）
 
 【使用示例】
 ```python
@@ -72,7 +83,7 @@ from src.models.unet_v13_fpn import AudioUNet5FPN
 import torch
 
 # 创建模型
-model = AudioUNet5FPN(fpn_channels=64, use_fpn_fusion=True)
+model = AudioUNet5FPN(fpn_channels=64)
 
 # 准备输入
 input_spec = torch.randn(4, 1, 256, 376)
@@ -184,47 +195,53 @@ class AudioUNet5FPN(nn.Module):
         self.smooth1 = nn.Conv2d(fpn_channels, fpn_channels, kernel_size=3, padding=1)
 
         # =================== 解码器（使用FPN特征）===================
-        
-        # Decoder Layer 5
+        # 标准FPN解码器：逐步上采样，每一层处理对应尺度的FPN特征
+
+        # Decoder Layer 5: P5 [B, 64, 8, T] -> [B, 64, 16, T]
         self.dec5 = nn.Sequential(
             nn.ConvTranspose2d(
-                fpn_channels, 128, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
+                fpn_channels, fpn_channels, kernel_size=3, stride=(2, 1),
+                padding=1, output_padding=(1, 0)
             ),
-            nn.BatchNorm2d(128),
+            nn.BatchNorm2d(fpn_channels),
             nn.ReLU(inplace=True),
         )
 
-        # Decoder Layer 4
+        # Decoder Layer 4: [B, 64, 16, T] -> [B, 64, 32, T]
         self.dec4 = nn.Sequential(
             nn.ConvTranspose2d(
-                256, 64, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
+                fpn_channels, fpn_channels, kernel_size=3, stride=(2, 1),
+                padding=1, output_padding=(1, 0)
             ),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(fpn_channels),
             nn.ReLU(inplace=True),
         )
 
-        # Decoder Layer 3
+        # Decoder Layer 3: [B, 64, 32, T] -> [B, 64, 64, T]
         self.dec3 = nn.Sequential(
             nn.ConvTranspose2d(
-                128, 32, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
+                fpn_channels, fpn_channels, kernel_size=3, stride=(2, 1),
+                padding=1, output_padding=(1, 0)
             ),
-            nn.BatchNorm2d(32),
+            nn.BatchNorm2d(fpn_channels),
             nn.ReLU(inplace=True),
         )
 
-        # Decoder Layer 2
+        # Decoder Layer 2: [B, 64, 64, T] -> [B, 64, 128, T]
         self.dec2 = nn.Sequential(
             nn.ConvTranspose2d(
-                64, 16, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
+                fpn_channels, fpn_channels, kernel_size=3, stride=(2, 1),
+                padding=1, output_padding=(1, 0)
             ),
-            nn.BatchNorm2d(16),
+            nn.BatchNorm2d(fpn_channels),
             nn.ReLU(inplace=True),
         )
 
-        # Final Layer
+        # Final Layer: [B, 64, 128, T] -> [B, 1, 256, T]
         self.dec1 = nn.Sequential(
             nn.ConvTranspose2d(
-                32, 1, kernel_size=3, stride=(2, 1), padding=1, output_padding=(1, 0)
+                fpn_channels, 1, kernel_size=3, stride=(2, 1),
+                padding=1, output_padding=(1, 0)
             ),
             nn.Sigmoid(),
         )
@@ -287,33 +304,59 @@ class AudioUNet5FPN(nn.Module):
         c5 = self.enc5(c4)        # [B, 256, 8, T] - 瓶颈层
 
         # =================== 步骤3：构建特征金字塔网络 ===================
-        if self.use_fpn_fusion:
-            p5, p4, p3, p2, p1 = self._build_fpn(c5, c4, c3, c2, c1)
-            decoder_inputs = (p5, p4, p3, p2, p1)
-        else:
-            # 使用标准编码器特征而不使用FPN
-            decoder_inputs = (c5, c4, c3, c2, c1)
+        # FPN融合是这个模型的核心特性
+        p5, p4, p3, p2, p1 = self._build_fpn(c5, c4, c3, c2, c1)
 
-        # =================== 步骤4：解码器前向传播 ===================
-        
-        # 解码器第5层
-        d5 = self.dec5(decoder_inputs[0])    # [B, 128, 16, T]
-        d5_cat = torch.cat([d5, decoder_inputs[1]], dim=1)  # [B, 256, 16, T]
+        # =================== 步骤4：FPN解码器前向传播 ===================
+        # 标准FPN解码方式：从最顶层开始逐步上采样并融合
 
-        # 解码器第4层
-        d4 = self.dec4(d5_cat)    # [B, 64, 32, T]
-        d4_cat = torch.cat([d4, decoder_inputs[2]], dim=1)  # [B, 128, 32, T]
+        # 从P5开始，逐步上采样到原始分辨率
+        # P5: [B, 64, 8, T] -> [B, 64, 16, T]
+        d5 = self.dec5(p5)
 
-        # 解码器第3层
-        d3 = self.dec3(d4_cat)    # [B, 32, 64, T]
-        d3_cat = torch.cat([d3, decoder_inputs[3]], dim=1)  # [B, 64, 64, T]
+        # 确保尺寸匹配
+        if d5.shape[2] != p4.shape[2] or d5.shape[3] != p4.shape[3]:
+            d5 = F.interpolate(d5, size=p4.shape[2:], mode='bilinear', align_corners=False)
 
-        # 解码器第2层
-        d2 = self.dec2(d3_cat)    # [B, 16, 128, T]
-        d2_cat = torch.cat([d2, decoder_inputs[4]], dim=1)  # [B, 32, 128, T]
+        # 与P4融合（相加而不是拼接）
+        d5_fused = d5 + p4  # [B, 64, 16, T]
 
-        # 最终层：生成掩膜
-        mask = self.dec1(d2_cat)  # [B, 1, 256, T]
+        # 上采样到P3的尺寸
+        d4 = self.dec4(d5_fused)  # [B, 64, 32, T]
+
+        # 确保尺寸匹配
+        if d4.shape[2] != p3.shape[2] or d4.shape[3] != p3.shape[3]:
+            d4 = F.interpolate(d4, size=p3.shape[2:], mode='bilinear', align_corners=False)
+
+        # 与P3融合
+        d4_fused = d4 + p3  # [B, 64, 32, T]
+
+        # 上采样到P2的尺寸
+        d3 = self.dec3(d4_fused)  # [B, 64, 64, T]
+
+        # 确保尺寸匹配
+        if d3.shape[2] != p2.shape[2] or d3.shape[3] != p2.shape[3]:
+            d3 = F.interpolate(d3, size=p2.shape[2:], mode='bilinear', align_corners=False)
+
+        # 与P2融合
+        d3_fused = d3 + p2  # [B, 64, 64, T]
+
+        # 上采样到P1的尺寸
+        d2 = self.dec2(d3_fused)  # [B, 64, 128, T]
+
+        # 确保尺寸匹配
+        if d2.shape[2] != p1.shape[2] or d2.shape[3] != p1.shape[3]:
+            d2 = F.interpolate(d2, size=p1.shape[2:], mode='bilinear', align_corners=False)
+
+        # 与P1融合
+        d2_fused = d2 + p1  # [B, 64, 128, T]
+
+        # 最终层：生成掩膜，上采样到原始输入尺寸
+        mask = self.dec1(d2_fused)  # [B, 1, 256, T]
+
+        # 确保最终输出尺寸匹配输入
+        if mask.shape[2] != x.shape[2] or mask.shape[3] != x.shape[3]:
+            mask = F.interpolate(mask, size=x.shape[2:], mode='bilinear', align_corners=False)
 
         # =================== 步骤5：应用掩膜 ===================
         output = x * mask

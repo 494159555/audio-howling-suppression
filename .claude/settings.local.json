@@ -5,7 +5,12 @@
       "Bash(xargs -n1 basename)",
       "Bash(ls -1 configs/*.yaml)",
       "Bash(ls -1 src/models/unet_*.py)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(ls -la *.py *.md *.txt *.json)",
+      "Bash(ls:*)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(pip list:*)",
+      "Bash(du -sh *)"
     ]
   }
 }
